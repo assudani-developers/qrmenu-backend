@@ -100,6 +100,15 @@ function parseLines(lines) {
     if (last && (t[0] === t[0].toLowerCase() || words > 3 || /,/.test(t))) { last.description = (last.description + ' ' + t).trim().slice(0, 160); continue; }
     if (!name && !cats.length) name = title(t);
   }
+  for (const c of cats) {
+    for (const item of c.items) {
+      const s = String(item.description || '').trim();
+      const alpha = (s.match(/[A-Za-z\u0900-\u097F]/g) || []).length;
+      if (s.length < 5 || alpha < 4 || (alpha / s.length) < 0.45 || /(\.{3,}|-{3,}|_{3,}|\*{3,}|={3,})/.test(s) || !/[A-Za-z\u0900-\u097F]{3,}/.test(s)) {
+        item.description = '';
+      }
+    }
+  }
   return { restaurantName: name, categories: cats.filter((c) => c.items.length) };
 }
 

@@ -627,12 +627,24 @@ function needOrdering(req, res, next) {
   next();
 }
 const FLOW = { pending: ['cooking', 'cancelled'], cooking: ['ready', 'cancelled'], ready: ['served'], served: [], cancelled: [] };
+function isTodayInIst(isoStr) {
+  if (!isoStr) return false;
+  try {
+    const d = new Date(isoStr);
+    if (isNaN(d.getTime())) return false;
+    const orderDate = d.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+    const todayDate = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+    return orderDate === todayDate;
+  } catch (_) {
+    return false;
+  }
+}
+
 router.get('/orders', needOrdering, (req, res) => {
   const mine = inMemoryData.orders.filter((o) => o.restaurantId === req.rest.id).slice(0, 300);
   const counts = {};
   for (const o of mine) counts[o.status] = (counts[o.status] || 0) + 1;
-  const today = new Date().toISOString().slice(0, 10);
-  const revenueToday = mine.filter((o) => o.status !== 'cancelled' && (o.createdAt || '').slice(0, 10) === today).reduce((n, o) => n + (o.totalAmount || 0), 0);
+  const revenueToday = mine.filter((o) => o.status !== 'cancelled' && (isTodayInIst(o.createdAt) || isTodayInIst(o.payment && o.payment.paidAt))).reduce((n, o) => n + (o.totalAmount || 0), 0);
   res.json({ success: true, orders: mine, counts, revenueToday });
 });
 router.patch('/orders/:oid/status', needOrdering, (req, res) => {
@@ -644,6 +656,61 @@ router.patch('/orders/:oid/status', needOrdering, (req, res) => {
   persistDb();
   RT.orderUpdate(o);
   res.json({ success: true, order: o });
+});
+router.patch('/orders/:oid/payment', needOrdering, (req, res) => {
+  const o = inMemoryData.orders.find((x) => x.id === req.params.oid && x.restaurantId === req.rest.id);
+  if (!o) return bad(res, 'Order not found', 404);
+  const { status = 'paid', method = 'cash' } = req.body || {};
+  o.payment = {
+    status: status === 'paid' ? 'paid' : 'unpaid',
+    method: status === 'paid' ? String(method).toLowerCase() : null,
+    paidAt: status === 'paid' ? new Date().toISOString() : null,
+  };
+  o.updatedAt = new Date().toISOString();
+  persistDb();
+  RT.orderUpdate(o);
+  res.json({ success: true, order: o });
+});
+/** Customer ledger / hisaab */
+router.get('/customers', (req, res) => {
+  const mine = inMemoryData.orders.filter((o) => o.restaurantId === req.rest.id);
+  const map = new Map();
+  for (const o of mine) {
+    const phone = String(o.customer?.phone || '').trim();
+    const guestId = String(o.guestId || '').trim();
+    const name = String(o.customer?.name || '').trim() || 'Guest';
+    const key = phone || guestId || `${name}_${o.id}`;
+    if (!map.has(key)) {
+      map.set(key, {
+        id: key,
+        name,
+        phone: phone || '',
+        guestId: guestId || '',
+        totalOrders: 0,
+        totalSpent: 0,
+        lastOrderAt: o.createdAt,
+        orders: [],
+      });
+    }
+    const c = map.get(key);
+    c.totalOrders += 1;
+    if (o.status !== 'cancelled') c.totalSpent += (o.totalAmount || 0);
+    c.orders.push({ id: o.id, token: o.token, tableNumber: o.tableNumber, totalAmount: o.totalAmount, status: o.status, payment: o.payment, createdAt: o.createdAt });
+  }
+  res.json({ success: true, customers: Array.from(map.values()).sort((a, b) => (b.lastOrderAt || '').localeCompare(a.lastOrderAt || '')) });
+});
+router.delete('/customers/:identifier', (req, res) => {
+  const target = decodeURIComponent(req.params.identifier).trim();
+  inMemoryData.orders = inMemoryData.orders.filter((o) => {
+    if (o.restaurantId !== req.rest.id) return true;
+    const phone = String(o.customer?.phone || '').trim();
+    const guestId = String(o.guestId || '').trim();
+    const nameKey = `${String(o.customer?.name || '').trim()}_${o.id}`;
+    if (phone === target || guestId === target || nameKey === target || o.id === target) return false;
+    return true;
+  });
+  persistDb();
+  res.json({ success: true, message: 'Customer order history cleared successfully' });
 });
 /** Staff / waiter punches an order for a table. */
 router.post('/orders', needOrdering, async (req, res) => {
@@ -745,13 +812,31 @@ const upload = multer({
 });
 router.post('/upload', upload.single('image'), async (req, res) => {
   const kind = String(req.query.kind || 'dish');
+  const rot = parseInt(req.query.rotate, 10) || 0;
+  const aspect = String(req.query.aspect || (kind === 'logo' ? '1:1' : kind === 'cover' ? '16:9' : '4:3'));
   const f = S.subscriptionState(req.rest).features;
   if (kind === 'dish' && !(f.photosPerDish > 0)) return S.planBlocked(res, 'photosPerDish');
   if (kind === 'cover' && !f.coverImage) return S.planBlocked(res, 'coverImage');
   if (!req.file) return bad(res, 'No image received');
   try {
     const name = `${req.rest.shortId}_${Date.now().toString(36)}.webp`;
-    await sharp(req.file.buffer).rotate().resize(1000, 1000, { fit: 'inside', withoutEnlargement: true }).webp({ quality: 80 }).toFile(path.join(uploadDir, name));
+    let sImg = sharp(req.file.buffer);
+    if (rot) {
+      sImg = sImg.rotate(rot);
+    } else {
+      sImg = sImg.rotate(); // auto-orient by EXIF
+    }
+    let targetW = 1000;
+    let targetH = 1000;
+    let fit = 'inside';
+    if (aspect === '1:1') {
+      targetW = 800; targetH = 800; fit = 'cover';
+    } else if (aspect === '4:3') {
+      targetW = 800; targetH = 600; fit = 'cover';
+    } else if (aspect === '16:9') {
+      targetW = 960; targetH = 540; fit = 'cover';
+    }
+    await sImg.resize(targetW, targetH, { fit, withoutEnlargement: true }).webp({ quality: 82 }).toFile(path.join(uploadDir, name));
     ImageVault.preserveFile(name);
     const origin = process.env.PUBLIC_API_URL || 'https://qrmenu.piyushassudani.in';
     res.json({ success: true, url: `${origin.replace(/\/$/, '')}/uploads/${name}` });

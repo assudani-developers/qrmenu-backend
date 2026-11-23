@@ -66,7 +66,7 @@ router.get('/menu/:slug', (req, res) => {
 
 /** Place an order. Prices come from the server menu — the client only says WHAT and HOW MANY. */
 router.post('/orders', orderLimiter, idempotency(), async (req, res) => {
-  const { slug, table, items, name, phone, notes, orderType = 'dine_in' } = req.body || {};
+  const { slug, table, items, name, phone, notes, orderType = 'dine_in', guestId } = req.body || {};
   const r = resolve(String(slug || ''));
   if (!r) return bad(res, 'Restaurant not found', 404);
   if (!S.isMenuLive(r)) return bad(res, 'This restaurant is not taking orders right now', 403);
@@ -77,8 +77,8 @@ router.post('/orders', orderLimiter, idempotency(), async (req, res) => {
   if (orderType === 'takeaway') return bad(res, 'This menu accepts dine-in table orders only', 403);
   const takeaway = false;
   const tableName = String(table || '').trim();
-  if (!tableName) return bad(res, 'Please choose your table');
-  if (!takeaway && r.tables.length && !r.tables.includes(tableName)) return bad(res, 'Unknown table');
+  if (!tableName) return bad(res, 'Please choose or enter your table number');
+  if (tableName.length > 30) return bad(res, 'Table name must be under 30 characters');
 
   const lines = [];
   for (const it of items) {
@@ -104,6 +104,7 @@ router.post('/orders', orderLimiter, idempotency(), async (req, res) => {
     r.orderSeq = (r.orderSeq || 0) + 1;
     const o = {
       id: `${r.shortId}-${r.orderSeq}`, token: r.orderSeq, trackKey: crypto.randomBytes(4).toString('hex'), restaurantId: r.id,
+      guestId: String(guestId || '').slice(0, 80),
       tableNumber: tableName, customer: { name: String(name || '').trim().slice(0, 60) || 'Guest', phone: String(phone || '').trim().slice(0, 15) },
       status: 'pending', items: lines, billing, totalAmount: billing.grandTotal, customerNotes: notes ? String(notes).slice(0, 200) : null,
       orderType: 'dine_in', payment: { status: 'unpaid', method: null }, etaMinutes: r.store.prepMinutes || null,
@@ -144,8 +145,50 @@ router.post('/orders', orderLimiter, idempotency(), async (req, res) => {
 router.get('/orders/:id/track', (req, res) => {
   const o = inMemoryData.orders.find((x) => x.id === req.params.id && x.trackKey === String(req.query.key || ''));
   if (!o) return bad(res, 'Order not found', 404);
+  const r = inMemoryData.restaurants.find((x) => x.id === o.restaurantId);
   res.setHeader('Cache-Control', 'no-cache');
-  res.json({ success: true, order: { id: o.id, token: o.token, status: o.status, tableNumber: o.tableNumber, orderType: o.orderType || 'dine_in', etaMinutes: o.etaMinutes || null, totalAmount: o.totalAmount, createdAt: o.createdAt, items: o.items.map((i) => ({ name: i.name, qty: i.qty, addons: i.addons || [] })) } });
+  res.json({
+    success: true,
+    order: {
+      id: o.id,
+      token: o.token,
+      status: o.status,
+      tableNumber: o.tableNumber,
+      orderType: o.orderType || 'dine_in',
+      etaMinutes: o.etaMinutes || null,
+      totalAmount: o.totalAmount,
+      billing: o.billing,
+      payment: o.payment || { status: 'unpaid', method: null },
+      restaurantName: r?.name || '',
+      restaurantAddress: r?.address || '',
+      gstin: r?.gstin || '',
+      createdAt: o.createdAt,
+      items: o.items.map((i) => ({ name: i.name, qty: i.qty, price: i.price, addons: i.addons || [] })),
+    },
+  });
+});
+
+/** Guest device past orders for this restaurant. */
+router.get('/orders/guest/:guestId', (req, res) => {
+  const gid = String(req.params.guestId || '').trim();
+  const slug = String(req.query.slug || '').trim();
+  const r = resolve(slug);
+  if (!gid || !r) return res.json({ success: true, orders: [] });
+  const mine = inMemoryData.orders
+    .filter((o) => o.restaurantId === r.id && o.guestId === gid)
+    .slice(0, 50)
+    .map((o) => ({
+      id: o.id,
+      token: o.token,
+      trackKey: o.trackKey,
+      status: o.status,
+      tableNumber: o.tableNumber,
+      totalAmount: o.totalAmount,
+      payment: o.payment || { status: 'unpaid', method: null },
+      createdAt: o.createdAt,
+      items: o.items.map((i) => ({ name: i.name, qty: i.qty, price: i.price })),
+    }));
+  res.json({ success: true, orders: mine });
 });
 
 /** Rating. Every guest can leave private feedback and optionally review the restaurant publicly. */

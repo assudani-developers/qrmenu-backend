@@ -384,6 +384,17 @@ def parse_column(toks, color, width, state):
                 d = dict(name=nm, prices=[], h=ln.h, desc="", conf=[ln.conf], ln=ln, cat=state["cat"], labels=labels, diet=mark_diet(color, ln), sdiet=state["sdiet"])
                 state["dishes"].append(d); prev, prev_kind = d, "dish"
 
+def clean_desc(d):
+    if not d or not isinstance(d, str): return ""
+    s = d.strip()
+    if len(s) < 5 or len(s) > 300: return ""
+    letters = len(re.findall(r"[A-Za-z\u0900-\u097F]", s))
+    if letters < 4 or (letters / len(s)) < 0.45: return ""
+    if re.search(r"^[^\w]+$", s): return ""
+    if re.search(r"(\.{3,}|-{3,}|_{3,}|\*{3,}|={3,})", s): return ""
+    if not re.search(r"[A-Za-z\u0900-\u097F]{3,}", s): return ""
+    return s
+
 def parse(path):
     color, gray, plain = prepare(path)
     toks = [t for t in run_ocr(gray, plain) if t.conf >= 0.2 and len(t.t.strip()) >= 1]
@@ -410,7 +421,7 @@ def parse(path):
             labs = d["labels"] if d["labels"] and len(d["labels"]) == len(prices) else \
                    (["Half", "Full"] if len(prices) == 2 else ["Small", "Medium", "Large"][:len(prices)] if len(prices) == 3 else [f"Option {i+1}" for i in range(len(prices))])
             variants = [{"name": l, "price": p} for l, p in zip(labs, prices)]
-        desc = d["desc"]
+        desc = clean_desc(d["desc"])
         diet = d["diet"] if d["diet"] is not None else keyword_diet(name, desc, d["sdiet"])
         low = (name + " " + desc).lower()
         spice = "spicy" if set(re.findall(r"[a-z]+", low)) & SPICY and "masala" not in low.split()[:1] and any(w in low for w in ("spicy", "schezwan", "chilli", "chili", "peri", "angara", "andhra", "kolhapuri")) else "none"
