@@ -104,7 +104,7 @@ const SEED_CATALOG = [
   { key: 'serviceCalls', label: 'Call waiter / ask for bill', group: 'Orders', type: 'bool' },
   { key: 'offers', label: 'Offer prices & happy hours', group: 'Orders', type: 'bool' },
   { key: 'addons', label: 'Add-ons (extra cheese, dips…)', group: 'Orders', type: 'bool' },
-  { key: 'maxTables', label: 'Table QR codes', group: 'Orders', type: 'number' },
+  { key: 'maxTables', label: 'Tables', group: 'Orders', type: 'number' },
   { key: 'analytics', label: 'Sales reports & best sellers', group: 'Business', type: 'bool' },
   { key: 'customers', label: 'Guest list & export', group: 'Business', type: 'bool' },
   { key: 'reservations', label: 'Table bookings from your menu', group: 'Business', type: 'bool' },
@@ -124,7 +124,12 @@ const cfg = () => {
 };
 const PLAN_ORDER = ['starter', 'growth', 'ultra'];
 const planOrder = () => Object.values(cfg().plans).sort((a, b) => (a.order || 0) - (b.order || 0)).map((p) => p.id);
-const catalog = () => cfg().featureCatalog;
+const catalog = () => {
+  const c = cfg().featureCatalog;
+  // one QR per restaurant now: older databases still call this "Table QR codes"
+  for (const r of c || []) if (r.key === 'maxTables' && r.label === 'Table QR codes') r.label = 'Tables';
+  return c;
+};
 const templates = () => cfg().templates;
 const qrThemes = () => cfg().qrThemes;
 const templateById = (id) => templates().find((t) => t.id === id);
@@ -442,3 +447,55 @@ module.exports.nowMinutesIST = nowMinutesIST;
 module.exports.categoryOpen = categoryOpen;
 module.exports.effectivePrice = effectivePrice;
 module.exports.toMin = toMin;
+
+/**
+ * Price for a restaurant paying for `planId`: coupon first, then — when moving up from a paid plan that still has
+ * days left — a credit for those unused days, so upgrading costs only the difference. The new plan runs 30 days from today.
+ */
+function quoteFor(r, planId, code) {
+  const q = priceWithCoupon(planId, code);
+  if (!q.ok || !r) return q;
+  const st = subscriptionState(r);
+  const cur = getPlans()[r.subscription.plan];
+  const next = getPlans()[planId];
+  const left = r.subscription.paidUntil ? (new Date(r.subscription.paidUntil).getTime() - Date.now()) / DAY : 0;
+  if ((st.status === 'active' || st.status === 'grace_period') && cur && next && next.price > cur.price && left > 0.5) {
+    const credit = Math.min(q.final, Math.round((cur.price * Math.min(30, left)) / 30));
+    if (credit > 0) Object.assign(q, { credit, creditPlan: cur.name, creditDays: Math.ceil(Math.min(30, left)), final: Math.max(0, q.final - credit), upgrade: true });
+  }
+  return q;
+}
+
+/**
+ * Switch a payment on: the plan becomes the paid plan (features follow it everywhere — a trial on Ultra that pays
+ * for Starter gets Starter limits), 30 days are added. Nothing the owner made is deleted, so moving back up restores it.
+ */
+function activatePayment(p, r, { by = 'admin', auto = false } = {}) {
+  p.status = 'verified';
+  p.verifiedAt = new Date().toISOString();
+  p.verifiedBy = auto ? 'auto' : by;
+  if (!r) return;
+  const base = p.upgrade ? Date.now() : Math.max(Date.now(), new Date(r.subscription.paidUntil || 0).getTime());
+  r.subscription.plan = p.planId; r.subscription.status = 'active';
+  r.subscription.paidUntil = new Date(base + 30 * DAY).toISOString();
+  r.currentPlan = p.planId; r.plan = p.planId; r.isActive = true; r.mrr = p.amount;
+  delete r.subscription.pendingPaymentId;
+  p.expiryExtendedTo = r.subscription.paidUntil;
+}
+
+/** The design actually shown: the saved one if the plan includes it, else the plan's first design (saved choice is kept). */
+function effectiveTemplate(r, features) {
+  const allowed = (features && features.templates) || [];
+  const id = r.theme && r.theme.template;
+  return templateById(allowed.includes(id) ? id : allowed[0]) || templateById(id) || templates()[0];
+}
+function effectiveQrTheme(r, features) {
+  const allowed = (features && features.qrThemes) || [];
+  const id = r.theme && r.theme.qrTheme;
+  return allowed.includes(id) ? id : allowed[0] || id;
+}
+
+module.exports.quoteFor = quoteFor;
+module.exports.activatePayment = activatePayment;
+module.exports.effectiveTemplate = effectiveTemplate;
+module.exports.effectiveQrTheme = effectiveQrTheme;

@@ -1,8 +1,13 @@
 'use strict';
 const test = require('node:test');
+const { after } = require('node:test');
 const assert = require('node:assert/strict');
 const S = require('../src/services/saas');
 const mailer = require('../src/services/mailer');
+
+after(async () => {
+  try { await require('../src/services/ocrLite').terminate(); } catch (_) {}
+});
 
 test('Email Service: simulation mode works safely without throwing', async () => {
   const otpRes = await mailer.sendOtpEmail({ to: 'partner@test.com', code: '482910', name: 'Test Rest' });
@@ -102,4 +107,58 @@ test('Restaurant Creation: stores email correctly in lower-case', () => {
     email: 'Piyush@Example.Com ',
   });
   assert.equal(r.email, 'piyush@example.com');
+});
+
+test('UPI Screenshot Auto-Check: verifies genuine, rejects wrong amount, and blocks reused hashes', async () => {
+  const sharp = require('sharp');
+  const fs = require('fs');
+  const os = require('os');
+  const path = require('path');
+  const payProof = require('../src/services/payProof');
+
+  const now = new Date();
+  const timeStr = now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+  const dateStr = now.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+
+  const svg = `
+    <svg width="600" height="800" xmlns="http://www.w3.org/2000/svg">
+      <rect width="100%" height="100%" fill="#ffffff"/>
+      <text x="50" y="100" font-size="24" fill="#111111" font-family="sans-serif">Payment Successful</text>
+      <text x="50" y="160" font-size="20" fill="#444444" font-family="sans-serif">Paid to Piyush Assudani</text>
+      <text x="50" y="200" font-size="18" fill="#666666" font-family="sans-serif">UPI ID: 9413879444@yespop</text>
+      <text x="50" y="280" font-size="36" font-weight="bold" fill="#000000" font-family="sans-serif">Rs. 559.00</text>
+      <text x="50" y="350" font-size="16" fill="#555555" font-family="sans-serif">Date: ${dateStr} at ${timeStr}</text>
+      <text x="50" y="400" font-size="16" fill="#555555" font-family="sans-serif">UPI Ref No: 412345678901</text>
+    </svg>
+  `;
+
+  const tmpImg = path.join(os.tmpdir(), `test_ss_${Date.now()}.png`);
+  await sharp(Buffer.from(svg)).png().toFile(tmpImg);
+
+  try {
+    const payee = {
+      amount: 559,
+      payeeName: 'Piyush Assudani',
+      upiId: '9413879444@yespop',
+      usedHashes: new Set(),
+      usedUtrs: new Set(),
+    };
+
+    // 1. Sahi screenshot (passes instantly)
+    const valid = await payProof.check(tmpImg, payee);
+    assert.equal(valid.ok, true, `Expected valid proof, got: ${valid.reasons?.join(', ')}`);
+    assert.ok(valid.hash);
+
+    // 2. Galat amount screenshot (fails)
+    const wrongAmt = await payProof.check(tmpImg, { ...payee, amount: 999 });
+    assert.equal(wrongAmt.ok, false);
+    assert.ok(wrongAmt.reasons.some((r) => r.includes('Amount ₹999 not found')));
+
+    // 3. Dohraya hua screenshot / Reused hash (fails)
+    const reused = await payProof.check(tmpImg, { ...payee, usedHashes: new Set([valid.hash]) });
+    assert.equal(reused.ok, false);
+    assert.ok(reused.reasons.some((r) => r.includes('already used')));
+  } finally {
+    if (fs.existsSync(tmpImg)) fs.unlinkSync(tmpImg);
+  }
 });

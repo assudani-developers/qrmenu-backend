@@ -302,16 +302,8 @@ router.post('/payments/:id/verify', (req, res) => {
   const p = inMemoryData.payments.find((x) => x.id === req.params.id);
   if (!p) return bad(res, 'Not found', 404);
   if (p.status === 'verified') return bad(res, 'Already verified', 409);
-  p.status = 'verified';
-  p.verifiedAt = new Date().toISOString();
   const r = find(p.restaurantId);
-  if (r) {
-    const base = Math.max(Date.now(), new Date(r.subscription.paidUntil || 0).getTime());
-    r.subscription.plan = p.planId; r.subscription.status = 'active';
-    r.subscription.paidUntil = new Date(base + 30 * S.DAY).toISOString();
-    r.currentPlan = p.planId; r.plan = p.planId; r.isActive = true; r.mrr = p.amount; delete r.subscription.pendingPaymentId;
-    p.expiryExtendedTo = r.subscription.paidUntil;
-  }
+  S.activatePayment(p, r, { by: 'admin' });
   recordActivity('payment', 'Payment verified', `₹${p.amount} from ${p.restaurantName} approved (+30 days).`);
   if (r) S.notify(r, { type: 'payment', title: 'Payment verified · plan active', body: `₹${p.amount} received. ${S.getPlans()[p.planId].name} is active till ${new Date(r.subscription.paidUntil).toLocaleDateString('en-IN')}.`, data: { paymentId: p.id } });
   if (r && r.email) {
@@ -338,9 +330,12 @@ router.post('/payments/:id/verify', (req, res) => {
 router.post('/payments/:id/reject', (req, res) => {
   const p = inMemoryData.payments.find((x) => x.id === req.params.id);
   if (!p) return bad(res, 'Not found', 404);
+  const wasAuto = p.status === 'verified' && p.verifiedBy === 'auto';
   p.status = 'rejected';
   const rr = find(p.restaurantId);
   if (rr && rr.subscription.status === 'pending') rr.subscription.status = 'expired';
+  // a fake screenshot that was approved automatically: the plan stops at once (fraud notice on the pay page)
+  if (rr && wasAuto) { rr.subscription.status = 'expired'; rr.subscription.paidUntil = new Date().toISOString(); recordActivity('payment', 'Auto-approval reversed', `${rr.name}: ₹${p.amount} rejected, service stopped.`); }
   if (rr) S.notify(rr, { type: 'payment', title: 'Payment could not be verified', body: `We could not find ₹${p.amount} with reference ${p.utrRef}. Please contact support.`, data: { paymentId: p.id } });
   persistDb();
   if (rr) RT.subscription(rr, { event: 'payment_rejected', payment: p });

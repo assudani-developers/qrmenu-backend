@@ -13,6 +13,8 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "@tesseract.js-data/eng": "^1.0.0",
+    "@tesseract.js-data/hin": "^1.0.0",
     "compression": "^1.8.2",
     "cors": "^2.8.6",
     "dotenv": "^18.0.10",
@@ -24,6 +26,7 @@
     "nodemailer": "^10.6.1",
     "sharp": "^0.35.5",
     "socket.io": "^4.8.4",
+    "tesseract.js": "^6.0.1",
     "web-push": "^3.6.7"
   },
   "devDependencies": {

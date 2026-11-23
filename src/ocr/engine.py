@@ -56,7 +56,7 @@ def load_image(path):
     im = ImageOps.exif_transpose(Image.open(path)).convert("RGB")
     return np.array(im)[:, :, ::-1].copy()
 
-def rescale(img, target=1400):
+def rescale(img, target=1200):
     h, w = img.shape[:2]
     s = max(0.4, min(2.5, target / max(h, w)))
     if abs(s - 1) < 0.05: return img

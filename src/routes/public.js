@@ -35,8 +35,8 @@ router.get('/menu/:slug', (req, res) => {
 
   res.setHeader('Cache-Control', 'no-cache');
   const f0 = sub.features;
-  const tpl = S.templateById(r.theme.template) || S.templates()[0];
-  const theme = { ...r.theme, coverUrl: f0.coverImage ? r.theme.coverUrl : '', announcement: f0.announcement ? r.theme.announcement : '' };
+  const tpl = S.effectiveTemplate(r, sub.features); // a lower plan shows its own design; the saved choice comes back on upgrade
+  const theme = { ...r.theme, template: tpl.id, qrTheme: S.effectiveQrTheme(r, sub.features), coverUrl: f0.coverImage ? r.theme.coverUrl : '', announcement: f0.announcement ? r.theme.announcement : '' };
   const brand = { name: inMemoryData.adminConfig.settings.brandName || 'QR Menu Pro', url: S.menuBaseUrl() };
   const base = {
     id: r.id, name: r.name, tagline: r.tagline, slug: r.slug, shortId: r.shortId, city: r.city, phone: r.phone, theme, live, status: sub.status,
@@ -49,7 +49,7 @@ router.get('/menu/:slug', (req, res) => {
   const f = sub.features;
   res.json({
     success: true,
-    restaurant: { ...base, googleReviewUrl: f.reviewInterceptor ? r.googleReviewUrl : '', tables: f.ordering || f.tableQr ? r.tables : [], taxPercent: r.taxPercent || 0 },
+    restaurant: { ...base, googleReviewUrl: f.reviewInterceptor ? r.googleReviewUrl : '', tables: f.ordering ? (r.tables || []).slice(0, f.maxTables || 0) : [], taxPercent: r.taxPercent || 0 },
     categories: r.categories,
     sections: r.categories.map((c) => ({ name: c, open: S.categoryOpen(r, c), window: f.menuScheduling ? r.categorySchedule[c] || null : null })),
     items: r.items.map((i) => ({
@@ -228,7 +228,8 @@ function payView(co) {
       cardImage: '/images/payment_card.png',
     },
     brandName: c.settings.brandName || 'QR Menu Pro', trialDays: c.settings.trialDays,
-    payment: pay && { id: pay.id, status: pay.status, amount: pay.amount, listPrice: pay.listPrice, coupon: pay.coupon, discount: pay.discount || 0, planId: pay.planId, utrRef: pay.utrRef, screenshotUrl: pay.screenshotUrl || null, date: pay.date, verifiedAt: pay.verifiedAt || null, paidUntil: pay.expiryExtendedTo || null },
+    payment: pay && { id: pay.id, status: pay.status, amount: pay.amount, listPrice: pay.listPrice, coupon: pay.coupon, discount: pay.discount || 0, planId: pay.planId, utrRef: pay.utrRef, screenshotUrl: pay.screenshotUrl || null, date: pay.date, verifiedAt: pay.verifiedAt || null, paidUntil: pay.expiryExtendedTo || null, credit: pay.credit || 0, creditPlan: pay.creditPlan || null, autoApproved: pay.verifiedBy === 'auto' },
+    current: { plan: r.subscription.plan, paidUntil: r.subscription.paidUntil || null },
   };
 }
 
@@ -263,7 +264,7 @@ router.post('/pay/:id/quote', orderLimiter, (req, res) => {
   const co = checkout(req.params.id);
   if (!co) return bad(res, 'This payment link has expired', 404);
   const { plan, coupon } = req.body || {};
-  const q = S.priceWithCoupon(plan || co.plan, coupon);
+  const q = S.quoteFor(inMemoryData.restaurants.find((x) => x.id === co.restaurantId), plan || co.plan, coupon);
   if (!q.ok) return bad(res, q.error);
   res.json({ success: true, ...q });
 });
@@ -286,45 +287,70 @@ router.post('/pay/:id/trial-coupon', orderLimiter, (req, res) => {
   RT.subscription(r, { event: 'trial_extended' });
   res.json({ success: true, ...payView(co) });
 });
-router.post('/pay/:id/submit', orderLimiter, (req, res) => {
+/**
+ * "I have paid". UTR and screenshot are both optional. A screenshot that clearly shows our payee, the exact amount,
+ * success and today's date/time is approved on the spot; everything else waits for the admin.
+ */
+router.post('/pay/:id/submit', orderLimiter, async (req, res) => {
   const co = checkout(req.params.id);
   if (!co) return bad(res, 'This payment link has expired', 404);
   const r = inMemoryData.restaurants.find((x) => x.id === co.restaurantId);
   if (!r) return bad(res, 'Restaurant not found', 404);
-  const { plan, coupon, utr, screenshotUrl } = req.body || {};
-  const ref = String(utr || '').trim();
-  if (!/^[A-Za-z0-9]{10,24}$/.test(ref)) return bad(res, 'Enter the 12-digit UPI reference (UTR) shown in your payment app');
-  const q = S.priceWithCoupon(plan || co.plan, coupon);
+  const { plan, coupon, utr, screenshotUrl, fraudAck } = req.body || {};
+  if (!fraudAck) return bad(res, 'Please confirm the fraud notice first');
+  const ref = String(utr || '').replace(/\s/g, '');
+  if (ref && !/^[A-Za-z0-9]{10,24}$/.test(ref)) return bad(res, 'That UPI reference looks wrong. It is usually 12 digits. You can also leave it empty.');
+  const q = S.quoteFor(r, plan || co.plan, coupon);
   if (!q.ok) return bad(res, q.error);
   if (q.coupon && q.coupon.type === 'trial_days') return bad(res, 'Trial coupons do not need a payment — tap Apply instead');
-  if (inMemoryData.payments.some((p) => p.utrRef === ref)) return bad(res, 'This reference was already submitted', 409);
+  if (ref && inMemoryData.payments.some((p) => p.utrRef === ref)) return bad(res, 'This reference was already submitted', 409);
   const existing = inMemoryData.payments.find((p) => p.checkoutId === co.id && p.status === 'pending');
   if (existing) return bad(res, 'Your payment is already waiting for verification', 409);
+  // screenshot must be one we stored for this kind of upload
+  const ssName = screenshotUrl ? path.basename(String(screenshotUrl)) : '';
+  const ssFile = /^pay_ss_[a-z0-9_]+\.webp$/.test(ssName) ? path.join(uploadDir, ssName) : '';
   if (q.coupon) S.findCoupon(coupon).used += 1;
+  const cfg = inMemoryData.adminConfig;
   const tx = {
     id: `TXN-${Date.now().toString(36).toUpperCase()}`, checkoutId: co.id, restaurantId: r.id, restaurantName: r.name, ownerName: r.ownerName,
     phone: r.phone, planId: plan || co.plan, amount: q.final, listPrice: q.original, discount: q.discount, coupon: q.coupon ? q.coupon.code : null,
-    method: 'UPI', utrRef: ref, screenshotUrl: screenshotUrl || null, payeeUpi: inMemoryData.adminConfig.adminUpiId || '9413879444@yespop', status: 'pending', source: 'website', date: new Date().toISOString(),
+    credit: q.credit || 0, creditPlan: q.creditPlan || null, upgrade: !!q.upgrade,
+    method: 'UPI', utrRef: ref || '', screenshotUrl: ssFile ? screenshotUrl : null, payeeUpi: cfg.adminUpiId || '', status: 'pending', source: 'website', date: new Date().toISOString(), fraudAckAt: new Date().toISOString(),
   };
+  // instant check of the screenshot
+  if (ssFile && require('fs').existsSync(ssFile)) {
+    try {
+      const proof = await require('../services/payProof').check(ssFile, {
+        amount: tx.amount, payeeName: cfg.payeeName || '', upiId: cfg.adminUpiId || '',
+        usedHashes: new Set(inMemoryData.payments.map((p) => p.screenshotHash).filter(Boolean)),
+        usedUtrs: new Set(inMemoryData.payments.map((p) => p.utrRef).filter(Boolean)),
+      });
+      tx.screenshotHash = proof.hash;
+      tx.autoCheck = { ok: proof.ok, reasons: proof.reasons, at: new Date().toISOString() };
+      if (!tx.utrRef && proof.utr && !inMemoryData.payments.some((p) => p.utrRef === proof.utr)) tx.utrRef = proof.utr;
+      if (proof.ok && tx.amount > 0) S.activatePayment(tx, r, { auto: true });
+    } catch (e) { tx.autoCheck = { ok: false, reasons: [`Check failed: ${e.message}`] }; }
+  }
   inMemoryData.payments.unshift(tx);
-  if (r.subscription.status !== 'active') r.subscription.pendingPaymentId = tx.id;
-  require('../db').recordActivity('payment', 'Payment submitted', `${r.name} paid ₹${tx.amount} for ${tx.planId}. Awaiting verification.`);
-  S.notify(r, { type: 'payment', title: 'Payment received · verifying', body: `₹${tx.amount} with reference ${ref}. Your plan activates once we confirm it.` });
+  const auto = tx.status === 'verified';
+  if (!auto && r.subscription.status !== 'active') r.subscription.pendingPaymentId = tx.id;
+  const planName = (S.getPlans()[tx.planId] || { name: tx.planId }).name;
+  require('../db').recordActivity('payment', auto ? 'Payment auto-approved' : 'Payment submitted', `${r.name} paid ₹${tx.amount} for ${planName}.${auto ? ' Screenshot matched, approved instantly.' : ' Awaiting verification.'}`);
+  S.notify(r, auto
+    ? { type: 'payment', title: `${planName} is active`, body: `₹${tx.amount} received. Active till ${new Date(r.subscription.paidUntil).toLocaleDateString('en-IN')}.` }
+    : { type: 'payment', title: 'Payment received · verifying', body: `₹${tx.amount}${tx.utrRef ? ` with reference ${tx.utrRef}` : ''}. Your plan activates once we confirm it.` });
   persistDb();
   RT.toAdmin('payment:new', { payment: tx });
-  require('../services/push').toAdmins({ title: `New payment ₹${tx.amount}`, body: `${r.name} · ${tx.planId} · UTR ${ref}`, url: '/dashboard/payments' });
+  if (auto) RT.subscription(r, { event: 'payment_verified', payment: tx });
+  require('../services/push').toAdmins({ title: `${auto ? 'Auto-approved' : 'New payment'} ₹${tx.amount}`, body: `${r.name} · ${planName}${tx.utrRef ? ` · UTR ${tx.utrRef}` : ''}${auto ? ' · check later' : ''}`, url: '/dashboard/payments' });
   if (r.email) {
     const mailer = require('../services/mailer');
-    const planObj = S.getPlans()[tx.planId] || { name: tx.planId };
-    mailer.sendPaymentSubmittedEmail({
-      to: r.email,
-      restaurantName: r.name,
-      amount: tx.amount,
-      planName: planObj.name,
-      utrRef: ref,
-    }).catch((err) => console.error('[Mailer:SubmitErr]', err.message));
+    (auto
+      ? mailer.sendPaymentReceiptEmail({ to: r.email, restaurantName: r.name, amount: tx.amount, originalPrice: tx.listPrice, discount: (tx.discount || 0) + (tx.credit || 0), couponCode: tx.coupon, planName, utrRef: tx.utrRef || '—', validUntil: r.subscription.paidUntil, invoiceId: tx.id, websiteUrl: S.menuBaseUrl() })
+      : mailer.sendPaymentSubmittedEmail({ to: r.email, restaurantName: r.name, amount: tx.amount, planName, utrRef: tx.utrRef || '—' })
+    ).catch((err) => console.error('[Mailer:PayErr]', err.message));
   }
-  res.json({ success: true, ...payView(co) });
+  res.json({ success: true, autoApproved: auto, ...payView(co) });
 });
 
 /** Website "Request a demo" form. */

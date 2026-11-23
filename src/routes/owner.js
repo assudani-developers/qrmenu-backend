@@ -679,7 +679,7 @@ const fs = require('fs');
 const ImageVault = require('../services/imageVault');
 const uploadDir = path.join(__dirname, '../../uploads');
 fs.mkdirSync(uploadDir, { recursive: true });
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 }, fileFilter: (q, f, cb) => cb(null, f.mimetype.startsWith('image/')) });
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 }, fileFilter: (q, f, cb) => cb(null, /^image\/|octet-stream/.test(f.mimetype)) }); // phones often send photos as octet-stream; sharp checks the real content
 router.post('/upload', upload.single('image'), async (req, res) => {
   const kind = String(req.query.kind || 'dish');
   const f = S.subscriptionState(req.rest).features;
@@ -692,7 +692,7 @@ router.post('/upload', upload.single('image'), async (req, res) => {
     ImageVault.preserveFile(name);
     const origin = process.env.PUBLIC_API_URL || 'https://qrmenu.piyushassudani.in';
     res.json({ success: true, url: `${origin.replace(/\/$/, '')}/uploads/${name}` });
-  } catch (_) { bad(res, 'Could not process that image', 422); }
+  } catch (_) { bad(res, 'That file is not a photo we can read. Use a JPG, PNG, WEBP or HEIC image.', 422); }
 });
 
 /* ---------- analytics (Growth+) ---------- */

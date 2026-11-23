@@ -87,11 +87,11 @@ test('website checkout: bill, coupon, UTR, admin verifies, trial coupons extend 
   await call('POST', '/admin/coupons', { code: 'BONUS5', type: 'trial_days', value: 5 }, at);
   const q = await call('POST', `/pay/${id}/quote`, { plan: 'ultra', coupon: 'off20' });
   assert.deepEqual([q.original, q.discount, q.final], [699, 140, 559]);
-  assert.equal((await call('POST', `/pay/${id}/submit`, { plan: 'ultra', coupon: 'OFF20', utr: '12' })).status, 400);
-  const sub = await call('POST', `/pay/${id}/submit`, { plan: 'ultra', coupon: 'OFF20', utr: '412345678901' });
+  assert.equal((await call('POST', `/pay/${id}/submit`, { fraudAck: true, plan: 'ultra', coupon: 'OFF20', utr: '12' })).status, 400);
+  const sub = await call('POST', `/pay/${id}/submit`, { fraudAck: true, plan: 'ultra', coupon: 'OFF20', utr: '412345678901' });
   assert.equal(sub.payment.status, 'pending');
   assert.equal(sub.payment.amount, 559);
-  assert.equal((await call('POST', `/pay/${id}/submit`, { plan: 'ultra', utr: '412345678901' })).status, 409);
+  assert.equal((await call('POST', `/pay/${id}/submit`, { fraudAck: true, plan: 'ultra', utr: '412345678901' })).status, 409);
   const pays = await call('GET', '/admin/payments', null, at);
   const p = pays.payments.find((x) => x.utrRef === '412345678901');
   assert.equal(p.source, 'website');
@@ -111,6 +111,32 @@ test('website checkout: bill, coupon, UTR, admin verifies, trial coupons extend 
   assert.equal((await call('POST', `/pay/${l2}/trial-coupon`, { coupon: 'OFF20' })).status, 400);
   const ext = await call('POST', `/pay/${l2}/trial-coupon`, { coupon: 'BONUS5' });
   assert.equal(ext.subscription.daysLeft, 17);
+
+  // trial on Ultra, pays for Starter without a UTR: features drop to Starter, saved Ultra design is kept and comes back on upgrade
+  const u = await signup({ name: 'Smart Diner', ownerName: 'Sam', phone: '9888888881', password: 'secret1', plan: 'ultra' });
+  assert.ok((await call('PATCH', '/owner/theme', { template: 'luxe' }, u.token)).success);
+  const ul = (await call('POST', '/owner/subscription/checkout-link', { plan: 'starter' }, u.token)).url.split('/').pop();
+  assert.equal((await call('POST', `/pay/${ul}/submit`, { plan: 'starter' })).status, 400); // fraud notice must be accepted
+  const ns = await call('POST', `/pay/${ul}/submit`, { fraudAck: true, plan: 'starter' });
+  assert.equal(ns.payment.status, 'pending');
+  assert.equal(ns.payment.utrRef, '');
+  const np = (await call('GET', '/admin/payments', null, at)).payments.find((x) => x.checkoutId === ul);
+  await call('POST', `/admin/payments/${np.id}/verify`, null, at);
+  const um = await call('GET', '/owner/me', null, u.token);
+  assert.equal(um.restaurant.subscription.plan, 'starter');
+  assert.equal(um.restaurant.theme.template, 'luxe'); // kept
+  const pubMenu = await call('GET', `/menu/${um.restaurant.shortId}`);
+  assert.equal(pubMenu.restaurant.template.tier, 'starter'); // shown as a Starter design
+  assert.equal(pubMenu.features.ordering, false);
+  // upgrade to Growth: unused Starter days are credited
+  const gl = (await call('POST', '/owner/subscription/checkout-link', { plan: 'growth' }, u.token)).url.split('/').pop();
+  const gq = await call('POST', `/pay/${gl}/quote`, { plan: 'growth' });
+  assert.ok(gq.credit >= 190 && gq.credit <= 199, `credit ${gq.credit}`);
+  assert.equal(gq.final, 399 - gq.credit);
+  const gs = await call('POST', `/pay/${gl}/submit`, { fraudAck: true, plan: 'growth' });
+  assert.equal(gs.payment.amount, 399 - gq.credit);
+  await call('POST', `/admin/payments/${(await call('GET', '/admin/payments', null, at)).payments.find((x) => x.checkoutId === gl).id}/verify`, null, at);
+  assert.equal((await call('GET', `/menu/${um.restaurant.shortId}`)).features.ordering, true);
 });
 
 test('menu import + server-priced ordering for Growth; Starter cannot take orders', async () => {

@@ -1,6 +1,9 @@
 /**
- * Photo -> menu, fully offline. Talks to a persistent Python worker (src/ocr/worker.py) that keeps the
- * OCR models in memory, so only the first scan after boot pays the model-load cost.
+ * Photo -> menu, fully offline, two engines:
+ *  - main: a persistent Python worker (src/ocr/worker.py, EasyOCR) — most accurate, needs Python + models;
+ *  - backup: Tesseract in Node (services/ocrLite.js) — always available, used when Python is missing,
+ *    still loading, or fails on a page. So a scan never waits minutes for an engine that cannot start.
+ * OCR_ENGINE=auto (default) | python | lite.
  */
 const fs = require('fs');
 const os = require('os');
@@ -9,7 +12,29 @@ const { spawn } = require('child_process');
 
 const PY = process.env.PYTHON_BIN || 'python3';
 const WORKER = path.join(__dirname, '../ocr/worker.py');
-const TIMEOUT_MS = 150000;
+const TIMEOUT_MS = 90000;
+const ENGINE = (process.env.OCR_ENGINE || 'auto').toLowerCase();
+const lite = require('./ocrLite');
+const MODELS = path.join(__dirname, '../ocr/models');
+
+/** Is the Python engine usable here? Checked once (packages import + model files present); never blocks a scan for long. */
+let pyOk = null, pyCheck = null, pyWhy = '';
+function pythonAvailable() {
+  if (ENGINE === 'lite') return Promise.resolve(false);
+  if (pyOk !== null) return Promise.resolve(pyOk);
+  if (pyCheck) return pyCheck;
+  pyCheck = new Promise((resolve) => {
+    const need = ['craft_mlt_25k.pth', 'english_g2.pth'];
+    if (!need.every((f) => fs.existsSync(path.join(MODELS, f)))) { pyWhy = 'OCR model files missing in src/ocr/models'; return resolve(false); }
+    let done = false, err = '';
+    const p = spawn(PY, ['-c', 'import easyocr, cv2, numpy, PIL, rapidfuzz'], { stdio: ['ignore', 'ignore', 'pipe'] });
+    p.stderr.on('data', (d) => { err += d; });
+    const t = setTimeout(() => { if (!done) { done = true; try { p.kill(); } catch (_) {} pyWhy = 'python import timed out'; resolve(false); } }, 25000);
+    p.on('error', (e) => { if (!done) { done = true; clearTimeout(t); pyWhy = e.message; resolve(false); } });
+    p.on('exit', (code) => { if (!done) { done = true; clearTimeout(t); pyWhy = code ? err.trim().split('\n').pop() : ''; resolve(code === 0); } });
+  }).then((ok) => { pyOk = ok; pyCheck = null; console.log(`[OCR] main engine ${ok ? 'available' : `not available (${pyWhy}); using the built-in backup engine`}`); return ok; });
+  return pyCheck;
+}
 // The OCR models use ~1 GB of RAM. Free the memory when nobody has scanned for a while (default 10 min);
 // the next scan starts the engine again in a few seconds. Set OCR_IDLE_MS=0 to keep it always loaded.
 const IDLE_MS = Number(process.env.OCR_IDLE_MS ?? 10 * 60 * 1000);
@@ -21,14 +46,15 @@ function touch() {
   if (idleTimer.unref) idleTimer.unref();
 }
 
-let proc = null, ready = null, buf = '', seq = 0;
+let proc = null, ready = null, buf = '', seq = 0, errTail = '';
 const pending = new Map();
 
 function start() {
   if (ready) return ready;
   proc = spawn(PY, [WORKER], { stdio: ['pipe', 'pipe', 'pipe'] });
   ready = new Promise((resolve, reject) => {
-    const to = setTimeout(() => reject(new Error('OCR engine failed to start')), 120000);
+    const to = setTimeout(() => reject(new Error('OCR engine took too long to start')), 60000);
+    proc.once('exit', (code) => { clearTimeout(to); reject(new Error(`OCR engine stopped while starting (${code}): ${errTail.trim().split('\n').pop() || 'no details'}`)); });
     proc.stdout.on('data', (d) => {
       buf += d.toString();
       let i;
@@ -43,15 +69,20 @@ function start() {
   });
   const reset = () => { for (const f of pending.values()) f({ success: false, error: 'OCR engine stopped' }); pending.clear(); proc = null; ready = null; buf = ''; };
   proc.on('exit', reset);
-  proc.stderr.on('data', () => {});
+  proc.stderr.on('data', (d) => { errTail = (errTail + d).slice(-2000); });
   ready.catch(() => { try { proc && proc.kill(); } catch (_) {} reset(); });
   return ready;
 }
 
 /** Load the models in the background. Called when an owner opens the scan screen, so they are ready by the
  *  time the photos are taken. At boot only when OCR_PRELOAD=1 (keeps RAM free on small servers). */
-function warm() { touch(); start().catch((e) => console.error('[OCR] warmup failed:', e.message)); }
-function warmup() { if (process.env.OCR_PRELOAD !== '1') return; touch(); start().then(() => console.log('[OCR] engine ready')).catch((e) => console.error('[OCR] warmup failed:', e.message)); }
+function warm() {
+  pythonAvailable().then((ok) => {
+    if (!ok) return lite.warm();
+    touch(); start().catch((e) => { console.error('[OCR] warmup failed:', e.message); pyOk = false; pyWhy = e.message; lite.warm(); });
+  });
+}
+function warmup() { pythonAvailable(); if (process.env.OCR_PRELOAD === '1') warm(); }
 
 async function ocrFile(file) {
   touch();
@@ -91,7 +122,15 @@ async function scanMenu(images, onProgress = () => {}) {
     const tmp = path.join(os.tmpdir(), `menu_${Date.now()}_${Math.random().toString(36).slice(2, 7)}.${ext}`);
     fs.writeFileSync(tmp, Buffer.from(img.data, 'base64'));
     try {
-      const r = await ocrFile(tmp);
+      let r = null;
+      if (await pythonAvailable()) {
+        r = await ocrFile(tmp).catch((e) => ({ success: false, error: e.message, crashed: true }));
+        if (r.crashed) { pyOk = false; pyWhy = r.error; console.error('[OCR] main engine failed, switching to backup:', r.error); }
+      }
+      if (!r || !r.success) {
+        const second = await lite.readMenu(Buffer.from(img.data, 'base64')).catch((e) => ({ success: false, error: e.message }));
+        if (second.success || !r) r = second;
+      }
       if (!r.success) { failed++; lastErr = r.error; continue; }
       name = name || r.restaurantName || '';
       warnings.push(...(r.warnings || []));
@@ -112,7 +151,7 @@ async function scanMenu(images, onProgress = () => {}) {
   }
   if (failed) warnings.unshift(`${failed} photo(s) could not be read.`);
   return {
-    engine: 'local-ocr', restaurantName: name, tagline: '', cuisine: '', vibe: inferVibe(categories), suggestedPrimary: null, suggestedAccent: null,
+    engine: pyOk ? 'local-ocr' : 'lite-ocr', restaurantName: name, tagline: '', cuisine: '', vibe: inferVibe(categories), suggestedPrimary: null, suggestedAccent: null,
     categories, warnings: [...new Set(warnings)].slice(0, 25), totalItems: categories.reduce((n, c) => n + c.items.length, 0),
   };
 }

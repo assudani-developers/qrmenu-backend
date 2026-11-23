@@ -11,7 +11,7 @@ data/vault/uploads/*
 !data/vault/uploads/.gitkeep
 data/vault/audit_ledger.jsonl
 data/backups/daily/*
-!data/backups/daily/.gitkeep
+data/tessdata/*
 
 # Python OCR
 __pycache__/
