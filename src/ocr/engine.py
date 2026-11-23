@@ -50,11 +50,11 @@ def load_image(path):
     im = ImageOps.exif_transpose(Image.open(path)).convert("RGB")
     return np.array(im)[:, :, ::-1].copy()
 
-def rescale(img, target=2400):
+def rescale(img, target=1400):
     h, w = img.shape[:2]
-    s = max(0.5, min(3.0, target / max(h, w)))
+    s = max(0.4, min(2.5, target / max(h, w)))
     if abs(s - 1) < 0.05: return img
-    return cv2.resize(img, None, fx=s, fy=s, interpolation=cv2.INTER_CUBIC if s > 1 else cv2.INTER_AREA)
+    return cv2.resize(img, None, fx=s, fy=s, interpolation=cv2.INTER_AREA if s < 1 else cv2.INTER_CUBIC)
 
 def estimate_skew(gray):
     small = cv2.resize(gray, None, fx=0.4, fy=0.4, interpolation=cv2.INTER_AREA)
@@ -111,20 +111,14 @@ def _read(img, langs, mag):
     return out
 
 def run_ocr(gray, plain):
-    """Two independent recognition passes (denoised @1.0x, plain @1.6x for small print); best-confidence box wins."""
-    a, b = _read(gray, ["en"], 1.0), _read(plain, ["en"], 1.6)
-    toks = list(a)
-    for t in b:
-        hit = next((o for o in toks if _iou(t, o) > 0.45), None)
-        if hit is None: toks.append(t)
-        elif t.conf > hit.conf + 0.05: toks[toks.index(hit)] = t
-    try:  # Devanagari pass: only keep boxes that really contain Hindi script and aren't already read
-        for t in _read(gray, ["hi", "en"], 1.0):
-            if not DEV.search(t.t) or t.conf < 0.35: continue
-            if not any(_iou(t, o) > 0.3 and not DEV.search(o.t) and o.conf > 0.5 for o in toks):
-                toks = [o for o in toks if _iou(t, o) <= 0.3] + [t]
-    except Exception:
-        pass
+    """Optimized high-accuracy bilingual (en + hi) pass in a single pass with fallback."""
+    toks = _read(gray, ["en", "hi"], 1.0)
+    if len(toks) < 8:
+        b = _read(plain, ["en", "hi"], 1.0)
+        for t in b:
+            hit = next((o for o in toks if _iou(t, o) > 0.45), None)
+            if hit is None: toks.append(t)
+            elif t.conf > hit.conf + 0.05: toks[toks.index(hit)] = t
     return toks
 
 def _iou(a, b):

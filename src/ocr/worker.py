@@ -10,7 +10,7 @@ def send(o):
     real_out.write(json.dumps(o, ensure_ascii=False) + "\n"); real_out.flush()
 
 try:
-    engine.reader(["en"]); engine.reader(["hi", "en"])
+    engine.reader(["en", "hi"])
 except Exception as e:
     sys.stderr.write(f"[ocr-worker] model preload: {e}\n")
 send({"ready": True})
