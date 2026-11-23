@@ -75,6 +75,9 @@ if (process.env.NODE_ENV !== 'test') {
       console.error('[Disaster Recovery Cron] Error:', err.message);
     }
   }, 3600 * 1000).unref(); // unref so it won't prevent process exit
+
+  const { startSubscriptionScheduler } = require('./services/subscriptionScheduler');
+  startSubscriptionScheduler();
 }
 
 app.use('/api/owner', ownerRoutes);

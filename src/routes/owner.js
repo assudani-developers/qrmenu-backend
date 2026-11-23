@@ -84,8 +84,40 @@ router.post('/check-phone', authLimiter, (req, res) => {
   return res.json({ success: true, available: true, message: 'Number is available' });
 });
 
+const emailOtps = new Map();
+
+/** Send 6-digit email verification code via Gmail SMTP (assudanigroup@gmail.com). */
+router.post('/send-email-otp', authLimiter, async (req, res) => {
+  const { email, name } = req.body || {};
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email).trim())) {
+    return bad(res, 'Please provide a valid email address');
+  }
+  const cleanEmail = String(email).trim().toLowerCase();
+  const code = Math.floor(100000 + Math.random() * 900000).toString();
+  emailOtps.set(cleanEmail, { code, expiresAt: Date.now() + 10 * 60 * 1000 });
+
+  const mailer = require('../services/mailer');
+  const result = await mailer.sendOtpEmail({ to: cleanEmail, code, name: name || 'Restaurant Partner' });
+  return res.json({ success: true, message: 'Verification code sent to email', simulated: !!result.simulated });
+});
+
+/** Verify the 6-digit email code. */
+router.post('/verify-email-otp', authLimiter, (req, res) => {
+  const { email, code } = req.body || {};
+  const cleanEmail = String(email || '').trim().toLowerCase();
+  const record = emailOtps.get(cleanEmail);
+  if (!record || record.expiresAt < Date.now()) {
+    return bad(res, 'Verification code has expired or does not exist. Please request a new one.', 400);
+  }
+  if (record.code !== String(code || '').trim()) {
+    return bad(res, 'Invalid verification code', 400);
+  }
+  emailOtps.delete(cleanEmail);
+  return res.json({ success: true, verified: true, message: 'Email verified successfully' });
+});
+
 router.post('/signup', (req, res) => {
-  const { name, ownerName, phone, password, city, plan, cuisine, couponCode } = req.body || {};
+  const { name, ownerName, phone, password, city, plan, cuisine, couponCode, email } = req.body || {};
   const settings = inMemoryData.adminConfig.settings;
   if (!settings.signupsOpen) return bad(res, 'Signups are temporarily closed', 403);
   if (!name || String(name).trim().length < 2) return bad(res, 'Enter your restaurant name');
@@ -94,6 +126,7 @@ router.post('/signup', (req, res) => {
   if (cleanPhone.length !== 10) return bad(res, 'Mobile number must be exactly 10 digits', 422);
   if (!/^[6-9]\d{9}$/.test(cleanPhone)) return bad(res, 'Enter a valid 10-digit Indian mobile number', 422);
   if (!password || String(password).length < 6) return bad(res, 'Password must be at least 6 characters');
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email).trim())) return bad(res, 'Enter a valid email address', 422);
   if (!S.getPlans()[plan]) return bad(res, 'Choose a plan');
   if (inMemoryData.restaurants.some((r) => String(r.phone || '').replace(/\D/g, '') === cleanPhone)) {
     return bad(res, 'This mobile number is already registered. Please sign in.', 409);
@@ -105,7 +138,7 @@ router.post('/signup', (req, res) => {
     if (!price.ok) return bad(res, price.error);
     if (!(price.coupon && price.coupon.type === 'trial_days')) return bad(res, 'Discount coupons apply when you pay. Add this one at checkout.');
   }
-  const r = S.createRestaurant({ name: String(name).trim(), ownerName: String(ownerName).trim(), phone: cleanPhone, password, city, plan, cuisine });
+  const r = S.createRestaurant({ name: String(name).trim(), ownerName: String(ownerName).trim(), phone: cleanPhone, email, password, city, plan, cuisine });
   if (price && price.coupon) {
     S.findCoupon(couponCode).used += 1;
     r.subscription.trialEndsAt = new Date(new Date(r.subscription.trialEndsAt).getTime() + price.extraTrialDays * S.DAY).toISOString();

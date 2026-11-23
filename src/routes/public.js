@@ -313,6 +313,17 @@ router.post('/pay/:id/submit', orderLimiter, (req, res) => {
   persistDb();
   RT.toAdmin('payment:new', { payment: tx });
   require('../services/push').toAdmins({ title: `New payment ₹${tx.amount}`, body: `${r.name} · ${tx.planId} · UTR ${ref}`, url: '/dashboard/payments' });
+  if (r.email) {
+    const mailer = require('../services/mailer');
+    const planObj = S.getPlans()[tx.planId] || { name: tx.planId };
+    mailer.sendPaymentSubmittedEmail({
+      to: r.email,
+      restaurantName: r.name,
+      amount: tx.amount,
+      planName: planObj.name,
+      utrRef: ref,
+    }).catch((err) => console.error('[Mailer:SubmitErr]', err.message));
+  }
   res.json({ success: true, ...payView(co) });
 });
 

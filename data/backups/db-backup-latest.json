@@ -621,6 +621,87 @@
   },
   "restaurants": [
     {
+      "id": "rest-bad1854dff",
+      "name": "Biryani Express",
+      "ownerName": "Piyush",
+      "phone": "9413879444",
+      "email": "piyush@example.com",
+      "city": "Jaipur",
+      "cuisine": "",
+      "tagline": "",
+      "slug": "biryani-express",
+      "shortId": "EPX3T7Y",
+      "upiId": "",
+      "googleReviewUrl": "",
+      "isActive": true,
+      "mrr": 0,
+      "totalScans": 0,
+      "scanLog": [],
+      "joinedDate": "23 Nov 2026",
+      "createdAt": "2026-11-23T11:47:48.486Z",
+      "tables": [
+        "Table 1",
+        "Table 2",
+        "Table 3",
+        "Table 4"
+      ],
+      "categories": [],
+      "items": [],
+      "subscription": {
+        "plan": "growth",
+        "status": "trial",
+        "trialStartedAt": "2026-11-23T11:47:48.486Z",
+        "trialEndsAt": "2026-11-30T11:47:48.486Z",
+        "paidUntil": null
+      },
+      "theme": {
+        "template": "haveli",
+        "logoUrl": "",
+        "coverUrl": "",
+        "welcome": "",
+        "announcement": "",
+        "currency": "₹",
+        "showVegToggle": true,
+        "showSearch": true,
+        "qrTheme": "classic"
+      },
+      "locked": true,
+      "notifications": [],
+      "orderSeq": 0,
+      "social": {
+        "instagram": "",
+        "facebook": "",
+        "whatsapp": "",
+        "website": "",
+        "maps": ""
+      },
+      "address": "",
+      "openingHours": "",
+      "fssai": "",
+      "gstin": "",
+      "about": "",
+      "prefs": {
+        "orderSound": true,
+        "receiptAnimation": true,
+        "autoAccept": false
+      },
+      "store": {
+        "open": true,
+        "prepMinutes": 20,
+        "takeaway": true,
+        "wifiName": "",
+        "wifiPassword": ""
+      },
+      "categorySchedule": {},
+      "serviceCalls": [],
+      "reservations": [],
+      "inventory": [],
+      "inventoryLogs": [],
+      "suppliers": [],
+      "currentPlan": "growth",
+      "plan": "growth"
+    },
+    {
       "id": "rest-632843ee3f",
       "name": "werewfr",
       "ownerName": "Piyush assudani",

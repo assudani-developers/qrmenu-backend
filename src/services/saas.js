@@ -238,23 +238,42 @@ function migrateAll() {
   persistDb();
 }
 
-/** Compute live subscription state (trial / active / expired). */
+/** Compute live subscription state (trial / active / grace_period / expired). */
 function subscriptionState(r) {
   const s = r.subscription;
   const now = Date.now();
   let status = s.status;
   let endsAt = null;
+  let inGrace = false;
+  let graceDaysLeft = 0;
+
   if (status === 'trial') {
     endsAt = s.trialEndsAt;
+    // Free trials expire immediately with no grace period
     if (new Date(endsAt).getTime() < now) status = 'expired';
-  } else if (status === 'active') {
+  } else if (status === 'active' || status === 'grace_period') {
     endsAt = s.paidUntil;
-    if (endsAt && new Date(endsAt).getTime() < now) status = 'expired';
+    if (endsAt) {
+      const expTime = new Date(endsAt).getTime();
+      const GRACE_PERIOD_MS = 3 * DAY;
+      if (now > expTime) {
+        if (now <= expTime + GRACE_PERIOD_MS) {
+          // Strictly for paid plans: 3-day courtesy grace period
+          status = 'grace_period';
+          inGrace = true;
+          graceDaysLeft = Math.max(1, Math.ceil((expTime + GRACE_PERIOD_MS - now) / DAY));
+        } else {
+          status = 'expired';
+        }
+      } else {
+        status = 'active';
+      }
+    }
   }
   if (status === 'pending') endsAt = null;
   const daysLeft = endsAt ? Math.max(0, Math.ceil((new Date(endsAt).getTime() - now) / DAY)) : 0;
   const plan = getPlans()[s.plan] || getPlans()[planOrder()[0]];
-  return { plan: s.plan, status, endsAt, daysLeft, features: plan.features, planName: plan.name };
+  return { plan: s.plan, status, endsAt, daysLeft, inGrace, graceDaysLeft, features: plan.features, planName: plan.name };
 }
 
 /** Is the public menu allowed to be served? */
@@ -296,7 +315,7 @@ function publicLinks(r) {
 }
 
 /** Create a new restaurant tenant with a 7-day trial. */
-function createRestaurant({ name, ownerName, phone, city, plan = 'growth', password, cuisine }) {
+function createRestaurant({ name, ownerName, phone, city, plan = 'growth', password, cuisine, email }) {
   const settings = inMemoryData.adminConfig.settings;
   const chosen = getPlans()[plan] ? plan : 'growth';
   const now = Date.now();
@@ -307,6 +326,7 @@ function createRestaurant({ name, ownerName, phone, city, plan = 'growth', passw
     name: String(name).trim(),
     ownerName: ownerName || 'Owner',
     phone: String(phone || '').trim(),
+    email: email ? String(email).trim().toLowerCase() : '',
     city: city || '',
     cuisine: cuisine || '',
     tagline: '',

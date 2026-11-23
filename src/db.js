@@ -78,22 +78,10 @@ function performAtomicDiskSync() {
       fs.mkdirSync(dir, { recursive: true });
     }
 
-    // Safety Invariant: Anti-Wipe Protection Guard
-    // If the database on disk is healthy and populated with restaurants,
-    // prevent an uninitialized 0-restaurant state from wiping it!
-    if (fs.existsSync(DB_FILE) && !DB_FILE.includes('qrm-') && !DB_FILE.includes('tmp')) {
-      try {
-        const onDisk = fs.readFileSync(DB_FILE, 'utf8');
-        if (onDisk && onDisk.length > 50) {
-          const parsed = JSON.parse(onDisk);
-          if (Array.isArray(parsed.restaurants) && parsed.restaurants.length > 0) {
-            if (!Array.isArray(inMemoryData.restaurants) || inMemoryData.restaurants.length === 0) {
-              console.error('🚨 [DB Safety Guard] BLOCKED WRITE: Prevented overwriting populated database with 0 restaurants!');
-              return;
-            }
-          }
-        }
-      } catch (_) {}
+    // Safety guard: only prevent write if inMemoryData is corrupt or not an object
+    if (!inMemoryData || typeof inMemoryData !== 'object' || !inMemoryData.adminConfig) {
+      console.error('🚨 [DB Safety Guard] BLOCKED WRITE: inMemoryData is not properly initialized!');
+      return;
     }
 
     const payload = JSON.stringify(inMemoryData, null, 2);
@@ -102,6 +90,12 @@ function performAtomicDiskSync() {
 
     // 2. Atomic Rename (Guarantees zero corrupt reads even on sudden power loss)
     fs.renameSync(TMP_FILE, DB_FILE);
+
+    // 3. Keep latest backup snapshot in sync with clean state
+    if (fs.existsSync(BACKUP_DIR)) {
+      const latestPath = path.join(BACKUP_DIR, 'db-backup-latest.json');
+      fs.writeFileSync(latestPath, payload, 'utf8');
+    }
 
     hasPendingMutation = false;
   } catch (err) {

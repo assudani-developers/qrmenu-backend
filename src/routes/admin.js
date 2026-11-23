@@ -3,7 +3,7 @@ const express = require('express');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const { JWT_SECRET, generateToken } = require('../middleware/auth');
-const { inMemoryData, persistDb, rebuildIndexes, recordActivity, createSnapshot, archiveRecord } = require('../db');
+const { inMemoryData, persistDb, forceFlushDb, rebuildIndexes, recordActivity, createSnapshot, archiveRecord } = require('../db');
 const S = require('../services/saas');
 const RT = require('../services/realtime');
 
@@ -155,14 +155,14 @@ router.delete('/restaurants/:id', (req, res) => {
   const i = inMemoryData.restaurants.findIndex((r) => r.id === req.params.id);
   if (i < 0) return bad(res, 'Not found', 404);
   const [gone] = inMemoryData.restaurants.splice(i, 1);
-  const orphanedOrders = inMemoryData.orders.filter((o) => o.restaurantId === gone.id);
   inMemoryData.orders = inMemoryData.orders.filter((o) => o.restaurantId !== gone.id);
-  archiveRecord('restaurants', gone, 'Deleted by admin', req.user?.email || 'admin');
-  for (const o of orphanedOrders) archiveRecord('orders', o, `Associated restaurant ${gone.name} deleted`);
+  inMemoryData.payments = inMemoryData.payments.filter((p) => p.restaurantId !== gone.id);
+  inMemoryData.feedbacks = inMemoryData.feedbacks.filter((f) => f.restaurantId !== gone.id);
+  inMemoryData.checkouts = (inMemoryData.checkouts || []).filter((c) => c.restaurantId !== gone.id);
   rebuildIndexes();
-  recordActivity('restaurant', 'Restaurant deleted', `${gone.name} was removed by admin (preserved in vault archive).`);
-  persistDb();
-  res.json({ success: true });
+  recordActivity('restaurant', 'Restaurant permanently deleted', `${gone.name} was permanently removed by admin.`);
+  forceFlushDb();
+  res.json({ success: true, message: 'Restaurant permanently deleted' });
 });
 
 /** Set plan / status / extend trial / grant paid days in one call. */
@@ -292,8 +292,8 @@ router.delete('/coupons/:id', (req, res) => {
   const n = inMemoryData.coupons.length;
   inMemoryData.coupons = inMemoryData.coupons.filter((x) => x.id !== req.params.id);
   if (inMemoryData.coupons.length === n) return bad(res, 'Not found', 404);
-  persistDb();
-  res.json({ success: true });
+  forceFlushDb();
+  res.json({ success: true, message: 'Coupon permanently deleted' });
 });
 
 /* ---------- payments ---------- */
@@ -314,6 +314,23 @@ router.post('/payments/:id/verify', (req, res) => {
   }
   recordActivity('payment', 'Payment verified', `₹${p.amount} from ${p.restaurantName} approved (+30 days).`);
   if (r) S.notify(r, { type: 'payment', title: 'Payment verified · plan active', body: `₹${p.amount} received. ${S.getPlans()[p.planId].name} is active till ${new Date(r.subscription.paidUntil).toLocaleDateString('en-IN')}.`, data: { paymentId: p.id } });
+  if (r && r.email) {
+    const mailer = require('../services/mailer');
+    const planObj = S.getPlans()[p.planId] || { name: p.planId, price: p.amount };
+    mailer.sendPaymentReceiptEmail({
+      to: r.email,
+      restaurantName: r.name,
+      amount: p.amount,
+      originalPrice: p.listPrice || planObj.price || p.amount,
+      discount: p.discount || 0,
+      couponCode: p.coupon || null,
+      planName: planObj.name,
+      utrRef: p.utrRef,
+      validUntil: r.subscription.paidUntil,
+      invoiceId: p.id,
+      websiteUrl: S.menuBaseUrl(),
+    }).catch((err) => console.error('[Mailer:ReceiptErr]', err.message));
+  }
   persistDb();
   if (r) RT.subscription(r, { event: 'payment_verified', payment: p });
   res.json({ success: true, payment: p });
@@ -341,8 +358,8 @@ router.patch('/leads/:id', (req, res) => {
 });
 router.delete('/leads/:id', (req, res) => {
   inMemoryData.leads = inMemoryData.leads.filter((x) => x.id !== req.params.id);
-  persistDb();
-  res.json({ success: true });
+  forceFlushDb();
+  res.json({ success: true, message: 'Lead permanently deleted' });
 });
 
 /* ---------- settings ---------- */
@@ -422,11 +439,10 @@ router.patch('/orders/:id/status', (req, res) => {
 router.delete('/orders/:id', (req, res) => {
   const i = inMemoryData.orders.findIndex((x) => x.id === req.params.id);
   if (i < 0) return bad(res, 'Not found', 404);
-  const [gone] = inMemoryData.orders.splice(i, 1);
-  archiveRecord('orders', gone, 'Deleted by admin', req.user?.email || 'admin');
+  inMemoryData.orders.splice(i, 1);
   rebuildIndexes();
-  persistDb();
-  res.json({ success: true });
+  forceFlushDb();
+  res.json({ success: true, message: 'Order permanently deleted' });
 });
 
 /* ---- feedback ---- */
@@ -436,12 +452,9 @@ router.get('/feedbacks', (req, res) => {
 });
 router.delete('/feedbacks/:id', (req, res) => {
   const i = inMemoryData.feedbacks.findIndex((x) => x.id === req.params.id);
-  if (i >= 0) {
-    const [gone] = inMemoryData.feedbacks.splice(i, 1);
-    archiveRecord('feedbacks', gone, 'Deleted by admin');
-  }
-  persistDb();
-  res.json({ success: true });
+  if (i >= 0) inMemoryData.feedbacks.splice(i, 1);
+  forceFlushDb();
+  res.json({ success: true, message: 'Feedback permanently deleted' });
 });
 
 /* ---- payments: record manually / delete ---- */
@@ -466,7 +479,13 @@ router.delete('/payments/:id', (req, res) => {
   const n = inMemoryData.payments.length;
   inMemoryData.payments = inMemoryData.payments.filter((x) => x.id !== req.params.id);
   if (inMemoryData.payments.length === n) return bad(res, 'Not found', 404);
-  persistDb(); res.json({ success: true });
+  for (const r of inMemoryData.restaurants) {
+    if (r.subscription && r.subscription.pendingPaymentId === req.params.id) {
+      r.subscription.pendingPaymentId = null;
+    }
+  }
+  forceFlushDb();
+  res.json({ success: true, message: 'Payment permanently deleted' });
 });
 
 /* ---- send a message to one restaurant or everyone (shows in their app instantly) ---- */
