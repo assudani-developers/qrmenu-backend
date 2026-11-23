@@ -27,10 +27,20 @@ router.post('/login', (req, res) => {
                     safeEq(user, 'piyushassudani') || 
                     safeEq(user, 'admin@qrmenu.pro') || 
                     safeEq(user, 'piyushassudani@gmail.com');
-  if (!validUser || !checkPassword(password)) {
-    return bad(res, 'Invalid admin credentials', 401);
+  if (validUser && checkPassword(password)) {
+    return res.json({ success: true, token: generateToken({ role: 'superadmin', email: user, name: 'Super Admin' }), email: user, role: 'superadmin', name: 'Super Admin' });
   }
-  res.json({ success: true, token: generateToken({ role: 'superadmin', email: user }), email: user });
+
+  // Check Sub-Admin accounts
+  const subAdmins = inMemoryData.subAdmins || [];
+  const sub = subAdmins.find((s) => s.isActive !== false && (String(s.username || '').toLowerCase() === user || String(s.email || '').toLowerCase() === user));
+  if (sub && S.verifyPassword(password, sub)) {
+    const token = generateToken({ id: sub.id, role: 'subadmin', email: sub.email, username: sub.username, name: sub.name, permissions: sub.permissions });
+    recordActivity('login', 'Sub-admin signed in', `${sub.name} (${sub.username}) signed in to console.`, { id: sub.id, name: sub.name, role: 'subadmin' });
+    return res.json({ success: true, token, email: sub.email, username: sub.username, role: 'subadmin', name: sub.name, permissions: sub.permissions });
+  }
+
+  return bad(res, 'Invalid admin credentials', 401);
 });
 
 router.use((req, res, next) => {
@@ -39,11 +49,20 @@ router.use((req, res, next) => {
   if (!token) return bad(res, 'Admin sign-in required', 401);
   try {
     const p = jwt.verify(token, JWT_SECRET);
-    if (p.role !== 'superadmin') return bad(res, 'Admins only', 403);
+    if (p.role !== 'superadmin' && p.role !== 'subadmin') return bad(res, 'Admins only', 403);
     req.admin = p;
     next();
   } catch (_) { return bad(res, 'Session expired', 401); }
 });
+
+const can = (req, perm) => {
+  if (req.admin.role === 'superadmin') return true;
+  return !!(req.admin.permissions && req.admin.permissions[perm]);
+};
+const guardPerm = (perm) => (req, res, next) => {
+  if (can(req, perm)) return next();
+  return bad(res, `Access denied: permission '${perm}' required for sub-admin`, 403);
+};
 
 const row = (r) => {
   const sub = S.subscriptionState(r);
@@ -64,7 +83,13 @@ router.get('/overview', (req, res) => {
   const plans = S.getPlans();
   const states = rs.map((r) => ({ r, s: S.subscriptionState(r) }));
   const paying = states.filter((x) => x.s.status === 'active');
-  const mrr = paying.reduce((n, x) => n + (plans[x.s.plan]?.price || 0), 0);
+  const mrr = paying.reduce((n, x) => {
+    if (typeof x.r.mrr === 'number' && x.r.mrr >= 0) return n + x.r.mrr;
+    const latestPayment = inMemoryData.payments
+      .filter((p) => p.restaurantId === x.r.id && p.status === 'verified')
+      .sort((a, b) => new Date(b.date || b.verifiedAt || 0) - new Date(a.date || a.verifiedAt || 0))[0];
+    return n + (latestPayment ? Number(latestPayment.amount) : (plans[x.s.plan]?.price || 0));
+  }, 0);
   const verified = inMemoryData.payments.filter((p) => p.status === 'verified');
   const revenue = verified.reduce((n, p) => n + (Number(p.amount) || 0), 0);
   const signups = [];
@@ -272,6 +297,8 @@ router.post('/coupons', (req, res) => {
     id: `cpn-${crypto.randomBytes(4).toString('hex')}`, code, description: String(b.description || ''), type: b.type,
     value: Number(b.value) || 0, maxUses: Number(b.maxUses) || 0, used: 0, expiresAt: b.expiresAt || null,
     plans: Array.isArray(b.plans) ? b.plans : [], active: b.active !== false, createdAt: new Date().toISOString(),
+    createdBy: req.admin.id || 'superadmin',
+    createdByName: req.admin.name || req.admin.username || req.admin.email || 'Super Admin',
   };
   inMemoryData.coupons.unshift(c); persistDb();
   res.status(201).json({ success: true, coupon: c });
@@ -527,6 +554,181 @@ router.get('/export', (req, res) => {
   const d = inMemoryData;
   res.setHeader('Content-Disposition', `attachment; filename="qrmenu-export-${new Date().toISOString().slice(0, 10)}.json"`);
   res.json({ exportedAt: new Date().toISOString(), restaurants: d.restaurants.map(cleanRest), orders: d.orders, feedbacks: d.feedbacks, payments: d.payments, coupons: d.coupons, leads: d.leads, plans: S.getPlans() });
+});
+
+/* ---------- bulk actions on restaurants ---------- */
+router.post('/restaurants/bulk', async (req, res) => {
+  const { action, ids = [], plan, days = 7 } = req.body || {};
+  if (!Array.isArray(ids) || !ids.length) return bad(res, 'Select at least one restaurant');
+  const actor = { id: req.admin.id || 'superadmin', name: req.admin.name || req.admin.email, role: req.admin.role };
+
+  if (action === 'delete') {
+    if (!can(req, 'restaurants_delete')) return bad(res, 'Permission denied: restaurants_delete', 403);
+    let count = 0;
+    for (const rid of ids) {
+      const rest = inMemoryData.restaurants.find((r) => r.id === rid);
+      if (rest) {
+        archiveRecord('restaurants', rest, 'Bulk deleted by admin', req.admin.email);
+        count++;
+      }
+    }
+    inMemoryData.restaurants = inMemoryData.restaurants.filter((r) => !ids.includes(r.id));
+    forceFlushDb();
+    recordActivity('restaurant', 'Bulk restaurants deleted', `Permanently deleted ${count} restaurants`, actor);
+    return res.json({ success: true, affected: count, message: `${count} restaurants deleted` });
+  }
+
+  if (action === 'suspend' || action === 'activate') {
+    if (!can(req, 'restaurants_edit')) return bad(res, 'Permission denied: restaurants_edit', 403);
+    const active = action === 'activate';
+    let count = 0;
+    for (const rid of ids) {
+      const rest = inMemoryData.restaurants.find((r) => r.id === rid);
+      if (rest) { rest.isActive = active; count++; }
+    }
+    persistDb();
+    recordActivity('restaurant', `Bulk ${action}d`, `${count} restaurants ${action}d`, actor);
+    return res.json({ success: true, affected: count, message: `${count} restaurants ${action}d` });
+  }
+
+  if (action === 'change_plan') {
+    if (!can(req, 'restaurants_edit')) return bad(res, 'Permission denied: restaurants_edit', 403);
+    if (!S.getPlans()[plan]) return bad(res, 'Invalid plan');
+    let count = 0;
+    for (const rid of ids) {
+      const rest = inMemoryData.restaurants.find((r) => r.id === rid);
+      if (rest) {
+        rest.subscription.plan = plan;
+        rest.currentPlan = plan;
+        rest.plan = plan;
+        count++;
+      }
+    }
+    persistDb();
+    recordActivity('plan', 'Bulk plan change', `Changed plan to ${plan} for ${count} restaurants`, actor);
+    return res.json({ success: true, affected: count, message: `Plan changed to ${plan} for ${count} restaurants` });
+  }
+
+  if (action === 'extend_trial') {
+    if (!can(req, 'restaurants_edit')) return bad(res, 'Permission denied: restaurants_edit', 403);
+    const addMs = Number(days) * 24 * 3600 * 1000;
+    let count = 0;
+    for (const rid of ids) {
+      const rest = inMemoryData.restaurants.find((r) => r.id === rid);
+      if (rest) {
+        const curEnd = new Date(rest.subscription.trialEndsAt || Date.now()).getTime();
+        rest.subscription.trialEndsAt = new Date(Math.max(Date.now(), curEnd) + addMs).toISOString();
+        count++;
+      }
+    }
+    persistDb();
+    recordActivity('restaurant', 'Bulk trial extended', `Extended trial by ${days} days for ${count} restaurants`, actor);
+    return res.json({ success: true, affected: count, message: `Extended trial by ${days} days for ${count} restaurants` });
+  }
+
+  return bad(res, 'Unknown bulk action');
+});
+
+/* ---------- sub-admins & staff management ---------- */
+router.get('/subadmins', (req, res) => {
+  const list = (inMemoryData.subAdmins || []).map((s) => ({
+    id: s.id, username: s.username, name: s.name, email: s.email, phone: s.phone,
+    permissions: s.permissions || {}, isActive: s.isActive !== false, createdAt: s.createdAt,
+  }));
+  res.json({ success: true, subAdmins: list });
+});
+
+router.post('/subadmins', guardPerm('settings_manage'), (req, res) => {
+  const { username, password, name, email, phone, permissions } = req.body || {};
+  if (!username || username.trim().length < 3) return bad(res, 'Username must be at least 3 characters');
+  if (!password || password.length < 6) return bad(res, 'Password must be at least 6 characters');
+  const u = username.trim().toLowerCase();
+  const subAdmins = inMemoryData.subAdmins || (inMemoryData.subAdmins = []);
+  if (subAdmins.some((s) => String(s.username).toLowerCase() === u)) return bad(res, 'Username already in use', 409);
+  const hashObj = S.hashPassword(password);
+  const sub = {
+    id: `sub-${crypto.randomBytes(6).toString('hex')}`,
+    username: u,
+    name: (name || username).trim(),
+    email: (email || '').trim().toLowerCase(),
+    phone: (phone || '').trim(),
+    salt: hashObj.salt,
+    hash: hashObj.hash,
+    role: 'subadmin',
+    permissions: Object.assign({
+      restaurants_view: true,
+      restaurants_create: true,
+      restaurants_edit: true,
+      restaurants_delete: false,
+      payments_view: true,
+      payments_verify: true,
+      payments_delete: false,
+      coupons_view: true,
+      coupons_manage: true,
+      orders_view: true,
+      settings_manage: false,
+    }, permissions || {}),
+    createdAt: new Date().toISOString(),
+    isActive: true,
+  };
+  subAdmins.push(sub);
+  persistDb();
+  recordActivity('subadmin', 'Sub-admin created', `Created sub-admin account ${sub.name} (${sub.username})`, { id: req.admin.id || 'superadmin', name: req.admin.name || req.admin.email, role: req.admin.role });
+  res.json({ success: true, subAdmin: { id: sub.id, username: sub.username, name: sub.name, email: sub.email, permissions: sub.permissions, isActive: sub.isActive } });
+});
+
+router.patch('/subadmins/:id', guardPerm('settings_manage'), (req, res) => {
+  const sub = (inMemoryData.subAdmins || []).find((s) => s.id === req.params.id);
+  if (!sub) return bad(res, 'Sub-admin not found', 404);
+  const b = req.body || {};
+  if (b.name) sub.name = b.name.trim();
+  if (b.email !== undefined) sub.email = String(b.email).trim().toLowerCase();
+  if (b.phone !== undefined) sub.phone = String(b.phone).trim();
+  if (b.permissions && typeof b.permissions === 'object') sub.permissions = Object.assign(sub.permissions || {}, b.permissions);
+  if (typeof b.isActive === 'boolean') sub.isActive = b.isActive;
+  if (b.password && b.password.length >= 6) {
+    const hashObj = S.hashPassword(b.password);
+    sub.salt = hashObj.salt;
+    sub.hash = hashObj.hash;
+  }
+  persistDb();
+  recordActivity('subadmin', 'Sub-admin updated', `Updated sub-admin ${sub.name} (${sub.username})`, { id: req.admin.id || 'superadmin', name: req.admin.name || req.admin.email, role: req.admin.role });
+  res.json({ success: true, subAdmin: { id: sub.id, username: sub.username, name: sub.name, email: sub.email, permissions: sub.permissions, isActive: sub.isActive } });
+});
+
+router.delete('/subadmins/:id', guardPerm('settings_manage'), (req, res) => {
+  const len = (inMemoryData.subAdmins || []).length;
+  inMemoryData.subAdmins = (inMemoryData.subAdmins || []).filter((s) => s.id !== req.params.id);
+  if (inMemoryData.subAdmins.length === len) return bad(res, 'Sub-admin not found', 404);
+  forceFlushDb();
+  recordActivity('subadmin', 'Sub-admin deleted', `Deleted sub-admin ${req.params.id}`, { id: req.admin.id || 'superadmin', name: req.admin.name || req.admin.email, role: req.admin.role });
+  res.json({ success: true, message: 'Sub-admin deleted' });
+});
+
+router.get('/subadmins/logs', (req, res) => {
+  const logs = (inMemoryData.activities || []).filter((a) => a.actor && (a.actor.role === 'subadmin' || req.query.all === 'true'));
+  res.json({ success: true, logs });
+});
+
+router.get('/subadmins/stats', (req, res) => {
+  const subAdmins = inMemoryData.subAdmins || [];
+  const coupons = inMemoryData.coupons || [];
+  const payments = inMemoryData.payments || [];
+  const stats = subAdmins.map((s) => {
+    const myCoupons = coupons.filter((c) => c.createdBy === s.id).map((c) => c.code);
+    const myPayments = payments.filter((p) => p.status === 'verified' && (p.referredBySubAdmin === s.id || (p.coupon && myCoupons.includes(p.coupon))));
+    const revenue = myPayments.reduce((acc, p) => acc + (Number(p.amount) || 0), 0);
+    return {
+      id: s.id,
+      name: s.name,
+      username: s.username,
+      couponCount: myCoupons.length,
+      referredPayments: myPayments.length,
+      revenueGenerated: revenue,
+      activityCount: (inMemoryData.activities || []).filter((a) => a.actor && a.actor.id === s.id).length,
+    };
+  });
+  res.json({ success: true, stats });
 });
 
 module.exports = router;

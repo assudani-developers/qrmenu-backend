@@ -33,6 +33,7 @@ function ownerAuth(req, res, next) {
 function summary(r) {
   const sub = S.subscriptionState(r);
   const plans = S.getPlans();
+  const pendingPayment = inMemoryData.payments.find((p) => p.restaurantId === r.id && p.status === 'pending');
   return {
     id: r.id, name: r.name, ownerName: r.ownerName, email: r.email, emailVerified: !!r.emailVerified, twoStep: !!r.twoStep, taxPercent: r.taxPercent || 0, phone: r.phone, city: r.city, cuisine: r.cuisine,
     tagline: r.tagline, address: r.address, openingHours: r.openingHours, fssai: r.fssai, gstin: r.gstin, about: r.about, social: r.social, prefs: r.prefs,
@@ -40,6 +41,7 @@ function summary(r) {
     tables: r.tables, categories: r.categories, items: r.items, theme: r.theme, isActive: r.isActive, store: r.store, categorySchedule: r.categorySchedule,
     totalScans: r.totalScans || 0, createdAt: r.createdAt,
     subscription: { ...sub, plan: sub.plan, planDetails: plans[sub.plan], trialEndsAt: r.subscription.trialEndsAt, trialStartedAt: r.subscription.trialStartedAt },
+    pendingPayment: pendingPayment ? { id: pendingPayment.id, planId: pendingPayment.planId, amount: pendingPayment.amount, date: pendingPayment.date, utrRef: pendingPayment.utrRef, status: pendingPayment.status, listPrice: pendingPayment.listPrice } : null,
     links: S.publicLinks(r),
     locked: { name: true, ownerName: true, phone: true },
   };
@@ -89,7 +91,10 @@ const OTP = require('../services/otp');
 const findByLogin = (id) => {
   const v = String(id || '').trim().toLowerCase();
   const digits = v.replace(/\D/g, '');
-  return inMemoryData.restaurants.find((x) => x.owner && ((digits.length === 10 && String(x.phone).replace(/\D/g, '') === digits) || (v.includes('@') && x.email === v)));
+  return inMemoryData.restaurants.find((x) =>
+    (digits.length === 10 && String(x.phone || '').replace(/\D/g, '') === digits) ||
+    (v.includes('@') && String(x.email || '').trim().toLowerCase() === v)
+  );
 };
 const sent = (res, r, email, extra = {}) => {
   if (r.wait) return bad(res, `Please wait ${r.wait} seconds before asking for a new code`, 429);
@@ -115,22 +120,39 @@ router.post('/verify-email-otp', authLimiter, (req, res) => {
   res.json({ success: true, verified: true, emailToken: OTP.emailProof(e) });
 });
 
-/** Forgot password: code goes to the email on the account (found by mobile number or email). */
+/** Forgot password / OTP login: code goes to the email on the account (found by mobile number or email). */
 router.post('/forgot-password', authLimiter, async (req, res) => {
-  const r = findByLogin((req.body || {}).login);
+  const { login, email } = req.body || {};
+  let r = findByLogin(login);
+  if (!r && email) r = findByLogin(email);
   if (!r) return bad(res, 'No account found with this mobile number or email', 404);
-  if (!r.email) return bad(res, 'This account has no email yet. Contact support to reset your password.', 409);
-  sent(res, await OTP.send('reset', r.id, r.email, r.ownerName), r.email);
+  let targetEmail = r.email;
+  if (!targetEmail) {
+    if (email && OTP.validEmail(email)) {
+      targetEmail = OTP.cleanEmail(email);
+      r.email = targetEmail;
+      persistDb();
+    } else {
+      return res.status(422).json({ success: false, needEmail: true, message: 'Please provide your email address to receive your verification code.' });
+    }
+  }
+  sent(res, await OTP.send('reset', r.id, targetEmail, r.ownerName), targetEmail, { sentEmail: OTP.mask(targetEmail) });
 });
+
 router.post('/reset-password', authLimiter, (req, res) => {
-  const { login, code, password } = req.body || {};
+  const { login, code, password, directLogin } = req.body || {};
   const r = findByLogin(login);
   if (!r) return bad(res, 'No account found with this mobile number or email', 404);
-  if (!password || String(password).length < 6) return bad(res, 'New password must be at least 6 characters');
   const c = OTP.check('reset', r.id, code);
   if (!c.ok) return bad(res, c.error, 400);
-  r.owner = S.hashPassword(password);
-  r.emailVerified = true; // the code reached this inbox
+
+  if (password && String(password).length >= 6) {
+    r.owner = S.hashPassword(password);
+  } else if (!directLogin && (!password || String(password).length < 6)) {
+    return bad(res, 'New password must be at least 6 characters');
+  }
+
+  r.emailVerified = true;
   persistDb();
   res.json({ success: true, token: generateToken({ role: 'owner', restaurantId: r.id }), restaurant: summary(r) });
 });
@@ -315,7 +337,15 @@ router.post('/menu/scan', async (req, res) => {
     for (const j of scanJobs.values()) if (j.rid === r.id && j.status === 'running') return res.json(jobView(j)); // one scan at a time per restaurant
     const job = { id: id('scan'), rid: r.id, status: 'running', page: 0, pages: images.length, queued: queueLength(), at: Date.now() };
     scanJobs.set(job.id, job);
-    scanMenu(images, (p) => Object.assign(job, p))
+    scanMenu(images, (p) => {
+      if (typeof p === 'object' && p !== null) {
+        job.page = Number(p.page) || 0;
+        job.pages = Number(p.pages) || images.length;
+        job.queued = Number(p.queued) || 0;
+      } else if (typeof p === 'number') {
+        job.page = p;
+      }
+    })
       .then((menu) => Object.assign(job, { status: 'done', menu, page: job.pages }))
       .catch((e) => Object.assign(job, { status: 'failed', message: e.message }));
     return res.json(jobView(job));
@@ -679,7 +709,11 @@ const fs = require('fs');
 const ImageVault = require('../services/imageVault');
 const uploadDir = path.join(__dirname, '../../uploads');
 fs.mkdirSync(uploadDir, { recursive: true });
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 }, fileFilter: (q, f, cb) => cb(null, /^image\/|octet-stream/.test(f.mimetype)) }); // phones often send photos as octet-stream; sharp checks the real content
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 25 * 1024 * 1024 },
+  fileFilter: (q, f, cb) => cb(null, !f.mimetype || /^image\/|octet-stream|application\//.test(f.mimetype) || /\.(jpe?g|png|webp|heic|heif|gif)$/i.test(f.originalname)),
+});
 router.post('/upload', upload.single('image'), async (req, res) => {
   const kind = String(req.query.kind || 'dish');
   const f = S.subscriptionState(req.rest).features;

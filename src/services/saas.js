@@ -460,8 +460,25 @@ function quoteFor(r, planId, code) {
   const next = getPlans()[planId];
   const left = r.subscription.paidUntil ? (new Date(r.subscription.paidUntil).getTime() - Date.now()) / DAY : 0;
   if ((st.status === 'active' || st.status === 'grace_period') && cur && next && next.price > cur.price && left > 0.5) {
+    const daysRemaining = Math.ceil(Math.min(30, left));
+    const daysUsed = Math.max(0, 30 - daysRemaining);
+    const perDay = Number((cur.price / 30).toFixed(1));
     const credit = Math.min(q.final, Math.round((cur.price * Math.min(30, left)) / 30));
-    if (credit > 0) Object.assign(q, { credit, creditPlan: cur.name, creditDays: Math.ceil(Math.min(30, left)), final: Math.max(0, q.final - credit), upgrade: true });
+    if (credit > 0) {
+      const finalPrice = Math.max(0, q.final - credit);
+      Object.assign(q, {
+        credit,
+        creditPlan: cur.name,
+        creditDays: daysRemaining,
+        daysUsed,
+        curPrice: cur.price,
+        perDay,
+        final: finalPrice,
+        upgrade: true,
+        breakdownHinglish: `${cur.name} plan ₹${cur.price} ka tha (₹${perDay}/din). Aapne ${daysUsed} din use kiye aur ${daysRemaining} din bache hain, isliye ₹${credit} credit minus ho gaya. Naye ${next.name} plan ke liye aapko sirf ₹${finalPrice} pay karna hai.`,
+        breakdownEnglish: `You used ${daysUsed} days of ${cur.name} and have ${daysRemaining} days remaining (₹${credit} credit applied). Upgrading to ${next.name} costs only the difference: ₹${finalPrice}.`,
+      });
+    }
   }
   return q;
 }

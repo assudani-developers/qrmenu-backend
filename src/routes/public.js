@@ -257,6 +257,16 @@ router.get('/pay/:id', (req, res) => {
   if (!co) return bad(res, 'This payment link has expired. Open the app and tap Renew again.', 404);
   const v = payView(co);
   if (!v) return bad(res, 'Restaurant not found', 404);
+  if (v.payment && v.payment.status === 'verified') {
+    return res.status(404).json({
+      success: false,
+      settled: true,
+      message: 'This bill has already been settled and your plan is active. Please open the app to continue.',
+      redirectUrl: '/app/',
+      restaurant: v.restaurant,
+      payment: v.payment,
+    });
+  }
   res.setHeader('Cache-Control', 'no-store');
   res.json({ success: true, ...v });
 });
@@ -309,12 +319,15 @@ router.post('/pay/:id/submit', orderLimiter, async (req, res) => {
   // screenshot must be one we stored for this kind of upload
   const ssName = screenshotUrl ? path.basename(String(screenshotUrl)) : '';
   const ssFile = /^pay_ss_[a-z0-9_]+\.webp$/.test(ssName) ? path.join(uploadDir, ssName) : '';
-  if (q.coupon) S.findCoupon(coupon).used += 1;
+  const couponObj = q.coupon ? S.findCoupon(coupon) : null;
+  if (couponObj) couponObj.used += 1;
   const cfg = inMemoryData.adminConfig;
   const tx = {
     id: `TXN-${Date.now().toString(36).toUpperCase()}`, checkoutId: co.id, restaurantId: r.id, restaurantName: r.name, ownerName: r.ownerName,
     phone: r.phone, planId: plan || co.plan, amount: q.final, listPrice: q.original, discount: q.discount, coupon: q.coupon ? q.coupon.code : null,
     credit: q.credit || 0, creditPlan: q.creditPlan || null, upgrade: !!q.upgrade,
+    referredBySubAdmin: couponObj?.createdBy && couponObj.createdBy !== 'superadmin' ? couponObj.createdBy : null,
+    subAdminName: couponObj?.createdByName && couponObj.createdByName !== 'Super Admin' ? couponObj.createdByName : null,
     method: 'UPI', utrRef: ref || '', screenshotUrl: ssFile ? screenshotUrl : null, payeeUpi: cfg.adminUpiId || '', status: 'pending', source: 'website', date: new Date().toISOString(), fraudAckAt: new Date().toISOString(),
   };
   // instant check of the screenshot
@@ -341,7 +354,7 @@ router.post('/pay/:id/submit', orderLimiter, async (req, res) => {
     : { type: 'payment', title: 'Payment received · verifying', body: `₹${tx.amount}${tx.utrRef ? ` with reference ${tx.utrRef}` : ''}. Your plan activates once we confirm it.` });
   persistDb();
   RT.toAdmin('payment:new', { payment: tx });
-  if (auto) RT.subscription(r, { event: 'payment_verified', payment: tx });
+  RT.subscription(r, { event: auto ? 'payment_verified' : 'payment_submitted', payment: tx });
   require('../services/push').toAdmins({ title: `${auto ? 'Auto-approved' : 'New payment'} ₹${tx.amount}`, body: `${r.name} · ${planName}${tx.utrRef ? ` · UTR ${tx.utrRef}` : ''}${auto ? ' · check later' : ''}`, url: '/dashboard/payments' });
   if (r.email) {
     const mailer = require('../services/mailer');

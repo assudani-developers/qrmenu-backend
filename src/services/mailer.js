@@ -66,7 +66,7 @@ async function sendMail({ to, subject, html, text }) {
   }
 }
 
-/* ---------------- HTML Email Base Template (Bulletproof Inline-CSS) ---------------- */
+/* ---------------- HTML Email Base Template (Clean Light Theme) ---------------- */
 function wrapEmail(content, title = 'QR Menu Pro', preheader = '') {
   return `<!DOCTYPE html>
 <html lang="en">
@@ -76,30 +76,29 @@ function wrapEmail(content, title = 'QR Menu Pro', preheader = '') {
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <title>${title}</title>
 </head>
-<body style="margin: 0; padding: 0; background-color: #0c0a14; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; -webkit-font-smoothing: antialiased; color: #f4ede4;">
-  ${preheader ? `<div style="display: none; max-height: 0px; overflow: hidden; font-size: 1px; line-height: 1px; color: #0c0a14; opacity: 0;">${preheader}</div>` : ''}
+<body style="margin: 0; padding: 0; background-color: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; -webkit-font-smoothing: antialiased; color: #1e293b;">
+  ${preheader ? `<div style="display: none; max-height: 0px; overflow: hidden; font-size: 1px; line-height: 1px; color: #f1f5f9; opacity: 0;">${preheader}</div>` : ''}
   
-  <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #0c0a14; padding: 30px 12px;">
+  <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f1f5f9; padding: 32px 12px;">
     <tr>
       <td align="center">
-        <!-- Container Box -->
-        <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 600px; background-color: #151221; border-radius: 20px; border: 1px solid rgba(200, 169, 110, 0.35); box-shadow: 0 20px 50px rgba(0,0,0,0.6); overflow: hidden;">
+        <!-- Container Card -->
+        <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 600px; background-color: #ffffff; border-radius: 20px; border: 1px solid #e2e8f0; box-shadow: 0 10px 30px rgba(0,0,0,0.06); overflow: hidden;">
           
           <!-- Header Banner -->
           <tr>
-            <td style="background: linear-gradient(135deg, #221a38 0%, #100c1d 100%); padding: 36px 30px; text-align: center; border-bottom: 1px solid rgba(200, 169, 110, 0.2);">
+            <td style="background: linear-gradient(135deg, #1e1b2e 0%, #0f0c1b 100%); padding: 32px 24px; text-align: center; border-bottom: 2px solid #d97706;">
               <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
                 <tr>
                   <td align="center">
-                    <!-- Brand Crown / Icon -->
-                    <div style="display: inline-block; width: 52px; height: 52px; line-height: 52px; border-radius: 16px; background: linear-gradient(135deg, #E2C792 0%, #C8A96E 100%); color: #161224; font-size: 26px; font-weight: 900; box-shadow: 0 8px 20px rgba(200, 169, 110, 0.35); margin-bottom: 12px;">
+                    <div style="display: inline-block; width: 48px; height: 48px; line-height: 48px; border-radius: 14px; background: linear-gradient(135deg, #fbbf24 0%, #d97706 100%); color: #1e1b2e; font-size: 24px; font-weight: 900; box-shadow: 0 4px 12px rgba(217,119,6,0.3); margin-bottom: 10px;">
                       ⚡
                     </div>
-                    <div style="font-size: 26px; font-weight: 900; letter-spacing: 0.5px; color: #C8A96E; margin-bottom: 4px;">
+                    <div style="font-size: 24px; font-weight: 900; letter-spacing: 0.5px; color: #fef3c7; margin-bottom: 3px;">
                       QR MENU PRO
                     </div>
-                    <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 2.5px; color: #a59fb8;">
-                      Assudani Developers · SaaS Suite
+                    <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 2px; color: #cbd5e1;">
+                      Assudani Developers · Digital Restaurant Suite
                     </div>
                   </td>
                 </tr>
@@ -109,25 +108,34 @@ function wrapEmail(content, title = 'QR Menu Pro', preheader = '') {
 
           <!-- Main Content -->
           <tr>
-            <td style="padding: 34px 30px 24px 30px;">
+            <td style="padding: 34px 30px 24px 30px; background-color: #ffffff;">
               ${content}
+            </td>
+          </tr>
+
+          <!-- Spam notice helper box -->
+          <tr>
+            <td style="padding: 0 30px 20px 30px;">
+              <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px 16px; font-size: 12px; color: #64748b; line-height: 1.5;">
+                📬 <strong>Spam Folder Check:</strong> If this email arrived in your Spam/Junk folder, please click <em>"Report as not spam"</em> or move it to your Inbox to guarantee instant delivery of your order alerts and payment receipts.
+              </div>
             </td>
           </tr>
 
           <!-- Signature & Footer -->
           <tr>
-            <td style="padding: 24px 30px 30px 30px; text-align: center; background-color: #0e0b17; border-top: 1px solid rgba(255,255,255,0.06); font-size: 12px; color: #7f7894; line-height: 1.6;">
-              <div style="display: inline-block; background: rgba(200, 169, 110, 0.1); border: 1px solid rgba(200, 169, 110, 0.25); border-radius: 99px; padding: 4px 14px; font-size: 11px; font-weight: 700; color: #E2C792; margin-bottom: 12px;">
+            <td style="padding: 22px 30px 28px 30px; text-align: center; background-color: #f8fafc; border-top: 1px solid #e2e8f0; font-size: 12px; color: #64748b; line-height: 1.6;">
+              <div style="display: inline-block; background: #fef3c7; border: 1px solid #fde68a; border-radius: 99px; padding: 3px 12px; font-size: 10.5px; font-weight: 800; color: #b45309; margin-bottom: 10px;">
                 ⭐ OFFICIAL VERIFIED SYSTEM
               </div>
-              <p style="margin: 0 0 6px 0; color: #c7c2d6; font-size: 13px; font-weight: 700;">
+              <p style="margin: 0 0 4px 0; color: #1e293b; font-size: 13px; font-weight: 700;">
                 Designed &amp; Developed by Piyush Assudani
               </p>
-              <p style="margin: 0 0 6px 0; color: #9c94b0;">
-                Founder, Assudani Developers · Contact: <a href="mailto:assudanigroup@gmail.com" style="color: #C8A96E; text-decoration: none; font-weight: 600;">assudanigroup@gmail.com</a>
+              <p style="margin: 0 0 6px 0; color: #475569;">
+                Founder, Assudani Developers · <a href="mailto:assudanigroup@gmail.com" style="color: #d97706; text-decoration: none; font-weight: 700;">assudanigroup@gmail.com</a>
               </p>
-              <p style="margin: 0; font-size: 11px; color: #6a637d;">
-                &copy; ${new Date().getFullYear()} QR Menu Pro · All rights reserved. Ultra-reliable offline-first QR technology.
+              <p style="margin: 0; font-size: 11px; color: #94a3b8;">
+                &copy; ${new Date().getFullYear()} QR Menu Pro. Ultra-reliable offline-first digital menu and kitchen platform.
               </p>
             </td>
           </tr>
@@ -143,47 +151,53 @@ function wrapEmail(content, title = 'QR Menu Pro', preheader = '') {
 /* ---------------- 1. Verification OTP Email ---------------- */
 const OTP_TEXT = {
   signup: ['Verify your email', 'Use this code to confirm your email and finish creating your QR Menu Pro account:'],
-  reset: ['Reset your password', 'Someone (hopefully you) asked to reset the password of your QR Menu Pro account. Use this code to set a new one:'],
-  login: ['Your sign-in code', 'Your password was entered correctly. Use this code to finish signing in to QR Menu Pro:'],
+  reset: ['Reset your password / Instant sign-in', 'Use this 6-digit verification code to reset your password or sign in to your QR Menu Pro account:'],
+  login: ['Your sign-in code', 'Use this 6-digit code to finish signing in to QR Menu Pro:'],
   email: ['Confirm your new email', 'Use this code to confirm this as the new email for your QR Menu Pro account:'],
   twostep: ['Turn on two-step sign-in', 'Use this code to switch on two-step sign-in for your QR Menu Pro account:'],
 };
 async function sendOtpEmail({ to, code, name = 'Restaurant Partner', purpose = 'signup' }) {
   const [heading, lead] = OTP_TEXT[purpose] || OTP_TEXT.signup;
   const content = `
-    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="margin-bottom: 24px; text-align: center;">
+    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="margin-bottom: 20px; text-align: center;">
       <tr>
         <td align="center">
-          <div style="display: inline-block; width: 56px; height: 56px; line-height: 56px; border-radius: 50%; background: rgba(200, 169, 110, 0.15); border: 1px solid rgba(200, 169, 110, 0.4); font-size: 26px; text-align: center;">
+          <div style="display: inline-block; width: 52px; height: 52px; line-height: 52px; border-radius: 50%; background: #fef3c7; border: 1px solid #fde68a; font-size: 24px; text-align: center;">
             🔐
           </div>
-          <h2 style="font-size: 24px; font-weight: 800; margin: 16px 0 6px 0; color: #ffffff;">${heading}</h2>
-          <div style="font-size: 13px; color: #a59fb8;">Assudani Developers · Identity Security</div>
+          <h2 style="font-size: 22px; font-weight: 800; margin: 14px 0 4px 0; color: #0f172a;">${heading}</h2>
+          <div style="font-size: 12.5px; color: #64748b;">Assudani Developers · Identity Security</div>
         </td>
       </tr>
     </table>
 
-    <p style="color: #c7c2d6; font-size: 15px; line-height: 1.6; margin: 0 0 12px 0;">Hello <strong>${name}</strong>,</p>
-    <p style="color: #c7c2d6; font-size: 14px; line-height: 1.6; margin: 0 0 20px 0;">
+    <p style="color: #334155; font-size: 15px; line-height: 1.6; margin: 0 0 10px 0;">Hello <strong>${name}</strong>,</p>
+    <p style="color: #475569; font-size: 14px; line-height: 1.6; margin: 0 0 18px 0;">
       ${lead}
     </p>
     
-    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="background: rgba(200, 169, 110, 0.08); border: 2px dashed #C8A96E; border-radius: 16px; margin: 24px 0;">
+    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="background: #fefce8; border: 2px dashed #ca8a04; border-radius: 16px; margin: 20px 0;">
       <tr>
-        <td align="center" style="padding: 24px 16px;">
-          <div style="font-size: 40px; font-weight: 900; letter-spacing: 12px; color: #E2C792; font-family: 'Courier New', Courier, monospace; padding-left: 12px;">${code}</div>
-          <div style="font-size: 12px; color: #a59fb8; margin-top: 10px; font-weight: 600;">Valid for 10 minutes · Do not share with anyone</div>
+        <td align="center" style="padding: 22px 16px;">
+          <div style="font-size: 38px; font-weight: 900; letter-spacing: 10px; color: #854d0e; font-family: 'Courier New', Courier, monospace; padding-left: 10px; user-select: all;">${code}</div>
+          <div style="font-size: 12px; color: #713f12; margin-top: 8px; font-weight: 700;">Valid for 10 minutes · Click / tap and hold to copy</div>
         </td>
       </tr>
     </table>
 
-    <p style="color: #8c85a0; font-size: 12px; line-height: 1.5; margin: 0;">Did not ask for this? Ignore this email, your account stays safe. Questions: <a href="mailto:assudanigroup@gmail.com" style="color: #C8A96E; text-decoration: none;">assudanigroup@gmail.com</a>.</p>
+    <div style="text-align: center; margin: 16px 0 24px 0;">
+      <span style="display: inline-block; background-color: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 8px; padding: 6px 14px; font-size: 12px; font-weight: 700; color: #334155;">
+        Code: <code style="font-family: monospace; font-size: 14px; color: #0f172a;">${code}</code>
+      </span>
+    </div>
+
+    <p style="color: #64748b; font-size: 12px; line-height: 1.5; margin: 0;">Did not ask for this? Ignore this email, your account remains safe. Support desk: <a href="mailto:assudanigroup@gmail.com" style="color: #d97706; text-decoration: none; font-weight: 600;">assudanigroup@gmail.com</a>.</p>
   `;
 
   return sendMail({
     to,
     subject: `${code} is your QR Menu Pro code`,
-    html: wrapEmail(content, heading, `${code} · valid for 10 minutes. Never share it.`),
+    html: wrapEmail(content, heading, `${code} is your QR Menu Pro verification code. Valid for 10 minutes.`),
   });
 }
 
@@ -244,63 +258,67 @@ async function sendPaymentReceiptEmail({
   const today = new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
 
   const content = `
-    <!-- Parchi-Style Receipt Header -->
-    <div style="background: linear-gradient(135deg, rgba(200, 169, 110, 0.15) 0%, rgba(200, 169, 110, 0.05) 100%); border: 1px solid rgba(200, 169, 110, 0.35); border-radius: 18px; padding: 26px; text-align: center;">
+    <!-- Parchi-Style Receipt Header (Crisp Light Theme) -->
+    <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 18px; padding: 24px; text-align: center;">
       <div style="font-size: 32px; margin-bottom: 6px;">✨</div>
-      <div style="font-size: 12px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; color: #C8A96E;">OFFICIAL PAYMENT RECEIPT</div>
-      <h2 style="font-size: 24px; font-weight: 900; margin: 8px 0; color: #ffffff;">Payment Approved &amp; Live!</h2>
-      <div style="font-size: 13px; color: #a59fb8;">Invoice #${invoiceId || `INV-${Date.now().toString(36).toUpperCase()}`} · Date: ${today}</div>
+      <div style="font-size: 11px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; color: #b45309;">OFFICIAL PAYMENT RECEIPT</div>
+      <h2 style="font-size: 22px; font-weight: 900; margin: 6px 0; color: #0f172a;">Payment Approved &amp; Live!</h2>
+      <div style="font-size: 13px; color: #64748b;">Invoice #${invoiceId || `INV-${Date.now().toString(36).toUpperCase()}`} · Date: ${today}</div>
     </div>
 
     <!-- Receipt Details Table -->
-    <div style="background-color: #120e1d; border-radius: 16px; border: 1px dashed rgba(200, 169, 110, 0.4); padding: 22px; margin: 24px 0;">
-      <div style="border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 12px; margin-bottom: 14px;">
-        <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; color: #8c85a0;">Billed To</div>
-        <div style="font-size: 18px; font-weight: 800; color: #ffffff; margin-top: 4px;">${restaurantName}</div>
+    <div style="background-color: #ffffff; border-radius: 16px; border: 2px dashed #cbd5e1; padding: 22px; margin: 24px 0;">
+      <div style="border-bottom: 1px solid #f1f5f9; padding-bottom: 12px; margin-bottom: 14px;">
+        <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; color: #64748b;">Billed To</div>
+        <div style="font-size: 18px; font-weight: 800; color: #0f172a; margin-top: 4px;">${restaurantName}</div>
       </div>
 
       <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="font-size: 14px;">
-        <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
-          <td style="padding: 10px 0; color: #c7c2d6;">
+        <tr style="border-bottom: 1px solid #f1f5f9;">
+          <td style="padding: 10px 0; color: #334155;">
             <strong>${planName} Plan Subscription</strong><br>
-            <span style="font-size: 12px; color: #8c85a0;">30 Days Full Access · Valid till ${formattedDate}</span>
+            <span style="font-size: 12px; color: #64748b;">30 Days Full Access · Valid till ${formattedDate}</span>
           </td>
-          <td style="text-align: right; padding: 10px 0; font-weight: 700; color: #ffffff;">₹${originalPrice || amount}</td>
+          <td style="text-align: right; padding: 10px 0; font-weight: 700; color: #0f172a;">₹${originalPrice || amount}</td>
         </tr>
         ${discount > 0 ? `
-        <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
-          <td style="padding: 10px 0; color: #34d399;">
+        <tr style="border-bottom: 1px solid #f1f5f9;">
+          <td style="padding: 10px 0; color: #059669; font-weight: 600;">
             Coupon Discount (${couponCode || 'PROMO'})
           </td>
-          <td style="text-align: right; padding: 10px 0; font-weight: 700; color: #34d399;">- ₹${discount}</td>
+          <td style="text-align: right; padding: 10px 0; font-weight: 700; color: #059669;">- ₹${discount}</td>
         </tr>` : ''}
         <tr>
-          <td style="padding: 14px 0; font-size: 16px; font-weight: 800; color: #C8A96E;">Total Paid via UPI</td>
-          <td style="text-align: right; padding: 14px 0; font-size: 20px; font-weight: 900; color: #E2C792;">₹${amount}</td>
+          <td style="padding: 14px 0; font-size: 16px; font-weight: 800; color: #b45309;">Total Paid via UPI</td>
+          <td style="text-align: right; padding: 14px 0; font-size: 22px; font-weight: 900; color: #b45309;">₹${amount}</td>
         </tr>
         <tr>
-          <td style="padding: 4px 0; font-size: 12px; color: #8c85a0;">Bank Reference / UTR</td>
-          <td style="text-align: right; padding: 4px 0; font-size: 12px; font-family: monospace; color: #c7c2d6;">${utrRef}</td>
+          <td style="padding: 6px 0; font-size: 12px; color: #64748b;">Bank Reference / UTR</td>
+          <td style="text-align: right; padding: 6px 0; font-size: 12px; font-family: monospace; color: #334155;">${utrRef}</td>
+        </tr>
+        <tr>
+          <td style="padding: 6px 0; font-size: 12px; color: #64748b;">Status</td>
+          <td style="text-align: right; padding: 6px 0; font-size: 12px; font-weight: 800; color: #059669;">PAID &amp; VERIFIED</td>
         </tr>
       </table>
     </div>
 
     <!-- Upsell Marketing Section (Ultra Plan Promotion) -->
-    <div style="background: linear-gradient(135deg, #2b1f47 0%, #171126 100%); border: 1px solid rgba(168, 85, 247, 0.4); border-radius: 16px; padding: 24px; margin: 26px 0; text-align: center;">
-      <div style="display: inline-block; background: rgba(168, 85, 247, 0.2); color: #c084fc; font-size: 11px; font-weight: 800; letter-spacing: 1.5px; padding: 4px 12px; border-radius: 99px; text-transform: uppercase; margin-bottom: 10px;">
+    <div style="background-color: #faf5ff; border: 1px solid #e9d5ff; border-radius: 16px; padding: 22px; margin: 24px 0; text-align: center;">
+      <div style="display: inline-block; background: #f3e8ff; color: #7e22ce; font-size: 11px; font-weight: 800; letter-spacing: 1.5px; padding: 4px 12px; border-radius: 99px; text-transform: uppercase; margin-bottom: 8px;">
         🚀 EXCLUSIVE UPGRADE OFFER
       </div>
-      <h3 style="font-size: 18px; margin: 0 0 8px 0; color: #ffffff;">Take Your Brand to the Next Level with ULTRA</h3>
-      <p style="font-size: 13px; color: #c7c2d6; line-height: 1.5; margin: 0 0 16px 0;">
-        Custom Domain (e.g. <em>menu.yourhotel.com</em>) · Multi-Branch POS Sync · Priority VIP Concierge · Dedicated Account Manager · 0% Commission Always.
+      <h3 style="font-size: 17px; margin: 0 0 6px 0; color: #4c1d95;">Scale Up with ULTRA</h3>
+      <p style="font-size: 13px; color: #6b21a8; line-height: 1.5; margin: 0 0 14px 0;">
+        All 10 Premium Themes · Custom Domain · Multi-Branch POS Sync · Dedicated Account Manager · 0% Commission.
       </p>
-      <a href="${websiteUrl}/pricing" style="display: inline-block; background: linear-gradient(135deg, #E2C792 0%, #C8A96E 100%); color: #161224; font-weight: 800; font-size: 13px; padding: 10px 24px; border-radius: 12px; text-decoration: none;">
+      <a href="${websiteUrl}/pricing" style="display: inline-block; background: #7e22ce; color: #ffffff; font-weight: 800; font-size: 13px; padding: 10px 22px; border-radius: 12px; text-decoration: none;">
         Explore Ultra Tier &rarr;
       </a>
     </div>
 
-    <p style="color: #8c85a0; font-size: 12px; text-align: center; margin: 0;">
-      Need assistance or GST invoice adjustment? Contact founder desk: <a href="mailto:assudanigroup@gmail.com" style="color: #C8A96E; text-decoration: none;">assudanigroup@gmail.com</a>
+    <p style="color: #64748b; font-size: 12px; text-align: center; margin: 0;">
+      Need assistance or GST invoice adjustment? Contact founder desk: <a href="mailto:assudanigroup@gmail.com" style="color: #d97706; text-decoration: none; font-weight: 600;">assudanigroup@gmail.com</a>
     </p>
   `;
 

@@ -625,7 +625,7 @@
       "name": "Biryani Express",
       "ownerName": "Piyush",
       "phone": "9413879444",
-      "email": "piyush@example.com",
+      "email": "piyushassudani96@gmail.com",
       "city": "Jaipur",
       "cuisine": "",
       "tagline": "",
@@ -699,14 +699,15 @@
       "inventoryLogs": [],
       "suppliers": [],
       "currentPlan": "growth",
-      "plan": "growth"
+      "plan": "growth",
+      "alertLog": {}
     },
     {
       "id": "rest-e2c3f88133",
       "name": "Biryani Express",
       "ownerName": "Piyush",
       "phone": "9413879444",
-      "email": "piyush@example.com",
+      "email": "piyushassudani96@gmail.com",
       "city": "Jaipur",
       "cuisine": "",
       "tagline": "",
@@ -780,7 +781,8 @@
       "inventoryLogs": [],
       "suppliers": [],
       "currentPlan": "growth",
-      "plan": "growth"
+      "plan": "growth",
+      "alertLog": {}
     },
     {
       "id": "rest-632843ee3f",
@@ -1627,5 +1629,6 @@
   "leads": [],
   "coupons": [],
   "checkouts": [],
-  "pushSubs": []
+  "pushSubs": [],
+  "subAdmins": []
 }

@@ -281,6 +281,7 @@ function loadDatabaseWithRecovery() {
     forceFlushDb();
   }
 
+  if (!Array.isArray(inMemoryData.subAdmins)) inMemoryData.subAdmins = [];
   rebuildIndexes();
 }
 
@@ -335,17 +336,19 @@ function findOrderById(id) {
 /**
  * Add an event to the platform audit trail
  */
-function recordActivity(type, title, description) {
+function recordActivity(type, title, description, actor = null) {
   const newAct = {
     id: `ACT-${Date.now().toString().slice(-4)}`,
     type,
     title,
     description,
+    actor: actor || { id: 'superadmin', name: 'Super Admin', role: 'superadmin' },
     timeAgo: 'Just now',
     timestamp: new Date().toISOString(),
   };
+  inMemoryData.activities = inMemoryData.activities || [];
   inMemoryData.activities.unshift(newAct);
-  if (inMemoryData.activities.length > 50) {
+  if (inMemoryData.activities.length > 100) {
     inMemoryData.activities.pop();
   }
   persistDb();
