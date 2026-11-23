@@ -3,13 +3,618 @@
     "adminUpiId": "",
     "adminPhone": "",
     "supportEmail": "",
-    "plans": {},
+    "plans": {
+      "starter": {
+        "id": "starter",
+        "name": "Starter",
+        "tagline": "A beautiful QR menu, live today",
+        "price": 199,
+        "color": "#0EA5E9",
+        "order": 1,
+        "description": "Your full menu on every phone in seconds — logo, cover photo, a photo for every dish, offers banner and your Instagram, WhatsApp and map buttons. Unlimited dishes and unlimited scans.",
+        "bestFor": "Cafés, chai points, sweet shops & counters",
+        "features": {
+          "templates": [
+            "haveli",
+            "minimal",
+            "cafe"
+          ],
+          "qrThemes": [
+            "plain",
+            "classic",
+            "mono"
+          ],
+          "photosPerDish": 1,
+          "coverImage": true,
+          "announcement": true,
+          "socialLinks": true,
+          "reviewInterceptor": true,
+          "dishBadges": false,
+          "offers": false,
+          "addons": false,
+          "ordering": false,
+          "tableQr": false,
+          "maxTables": 0,
+          "serviceCalls": false,
+          "analytics": false,
+          "customers": false,
+          "menuScheduling": false,
+          "reservations": false,
+          "inventory": false,
+          "removeBranding": false,
+          "prioritySupport": false
+        }
+      },
+      "growth": {
+        "id": "growth",
+        "name": "Growth",
+        "tagline": "Orders from the table to your kitchen",
+        "price": 399,
+        "color": "#F59E0B",
+        "order": 2,
+        "description": "Everything in Starter plus table ordering, a live kitchen screen with printed slips, call-waiter buttons, offer prices, add-ons, bestseller tags, 3 photos per dish and sales reports.",
+        "bestFor": "Restaurants & busy cafés",
+        "features": {
+          "templates": [
+            "haveli",
+            "minimal",
+            "cafe",
+            "chaat",
+            "garden",
+            "indigo"
+          ],
+          "qrThemes": [
+            "plain",
+            "classic",
+            "mono",
+            "sunset",
+            "forest",
+            "ocean"
+          ],
+          "photosPerDish": 3,
+          "coverImage": true,
+          "announcement": true,
+          "socialLinks": true,
+          "reviewInterceptor": true,
+          "dishBadges": true,
+          "offers": true,
+          "addons": true,
+          "ordering": true,
+          "tableQr": true,
+          "maxTables": 15,
+          "serviceCalls": true,
+          "analytics": true,
+          "customers": false,
+          "menuScheduling": false,
+          "reservations": false,
+          "inventory": false,
+          "removeBranding": false,
+          "prioritySupport": false
+        }
+      },
+      "ultra": {
+        "id": "ultra",
+        "name": "Ultra",
+        "tagline": "Everything, for the serious restaurant",
+        "price": 699,
+        "color": "#8B5CF6",
+        "order": 3,
+        "popular": true,
+        "badge": "Best value",
+        "description": "Everything in Growth plus all 10 premium menu designs and QR designs, unlimited tables, your guest list, table bookings, timed breakfast/lunch sections, stock tracking, no “Powered by” branding and priority support.",
+        "bestFor": "Full-service restaurants, bars & fine dining",
+        "features": {
+          "templates": [
+            "haveli",
+            "minimal",
+            "cafe",
+            "chaat",
+            "garden",
+            "indigo",
+            "luxe",
+            "maharaja",
+            "coastal",
+            "neon"
+          ],
+          "qrThemes": [
+            "plain",
+            "classic",
+            "mono",
+            "sunset",
+            "forest",
+            "ocean",
+            "noir",
+            "gold",
+            "royal",
+            "tent"
+          ],
+          "photosPerDish": 3,
+          "coverImage": true,
+          "announcement": true,
+          "socialLinks": true,
+          "reviewInterceptor": true,
+          "dishBadges": true,
+          "offers": true,
+          "addons": true,
+          "ordering": true,
+          "tableQr": true,
+          "maxTables": 999,
+          "serviceCalls": true,
+          "analytics": true,
+          "customers": true,
+          "menuScheduling": true,
+          "reservations": true,
+          "inventory": true,
+          "removeBranding": true,
+          "prioritySupport": true
+        }
+      }
+    },
     "settings": {
       "trialDays": 7,
       "trialEnabled": true,
       "maintenanceMode": false,
-      "signupsOpen": true
-    }
+      "signupsOpen": true,
+      "appPaymentLinks": true,
+      "brandName": "QR Menu Pro"
+    },
+    "templates": [
+      {
+        "id": "haveli",
+        "tier": "starter",
+        "name": "Haveli",
+        "blurb": "Warm ivory & saffron, timeless",
+        "primary": "#C2410C",
+        "accent": "#3B1D0F",
+        "background": "#FFF8EE",
+        "surface": "#FFFFFF",
+        "text": "#2B160A",
+        "muted": "#7A5B48",
+        "font": "serif",
+        "radius": 18,
+        "layout": "list",
+        "header": "hero",
+        "dark": false
+      },
+      {
+        "id": "minimal",
+        "tier": "starter",
+        "name": "Minimal",
+        "blurb": "Clean, calm and very fast",
+        "primary": "#111827",
+        "accent": "#111827",
+        "background": "#FFFFFF",
+        "surface": "#F7F7F8",
+        "text": "#111827",
+        "muted": "#6B7280",
+        "font": "sans",
+        "radius": 12,
+        "layout": "list",
+        "header": "centered",
+        "dark": false
+      },
+      {
+        "id": "cafe",
+        "tier": "starter",
+        "name": "Café Latte",
+        "blurb": "Cosy browns, rounded cards",
+        "primary": "#8A5A2B",
+        "accent": "#3B2417",
+        "background": "#F7EFE5",
+        "surface": "#FFFBF6",
+        "text": "#3B2417",
+        "muted": "#8C6E58",
+        "font": "rounded",
+        "radius": 22,
+        "layout": "cards",
+        "header": "centered",
+        "dark": false
+      },
+      {
+        "id": "chaat",
+        "tier": "growth",
+        "name": "Chaat Street",
+        "blurb": "Loud, hungry, appetising",
+        "primary": "#E11D48",
+        "accent": "#7C2D12",
+        "background": "#FFF7E6",
+        "surface": "#FFFFFF",
+        "text": "#431407",
+        "muted": "#9A5B3C",
+        "font": "display",
+        "radius": 16,
+        "layout": "grid",
+        "header": "band",
+        "dark": false
+      },
+      {
+        "id": "garden",
+        "tier": "growth",
+        "name": "Garden Fresh",
+        "blurb": "Leafy greens for healthy kitchens",
+        "primary": "#15803D",
+        "accent": "#14532D",
+        "background": "#F3F8F1",
+        "surface": "#FFFFFF",
+        "text": "#14301F",
+        "muted": "#5B7564",
+        "font": "sans",
+        "radius": 20,
+        "layout": "cards",
+        "header": "hero",
+        "dark": false
+      },
+      {
+        "id": "indigo",
+        "tier": "growth",
+        "name": "Indigo Modern",
+        "blurb": "Bold cards, crisp and fresh",
+        "primary": "#4F46E5",
+        "accent": "#1E1B4B",
+        "background": "#F6F7FB",
+        "surface": "#FFFFFF",
+        "text": "#111132",
+        "muted": "#63647E",
+        "font": "sans",
+        "radius": 24,
+        "layout": "grid",
+        "header": "band",
+        "dark": false
+      },
+      {
+        "id": "luxe",
+        "tier": "ultra",
+        "name": "Luxe Noir",
+        "blurb": "Black & gold fine dining",
+        "primary": "#D4AF37",
+        "accent": "#F5E6B3",
+        "background": "#0C0B0A",
+        "surface": "#171512",
+        "text": "#F5F0E6",
+        "muted": "#A69C88",
+        "font": "elegant",
+        "radius": 14,
+        "layout": "list",
+        "header": "hero",
+        "dark": true
+      },
+      {
+        "id": "maharaja",
+        "tier": "ultra",
+        "name": "Maharaja",
+        "blurb": "Royal plum with gold leaf",
+        "primary": "#E0B65A",
+        "accent": "#FCE7B2",
+        "background": "#1E0E24",
+        "surface": "#2A1532",
+        "text": "#FBF4FF",
+        "muted": "#C3A9CC",
+        "font": "elegant",
+        "radius": 18,
+        "layout": "cards",
+        "header": "hero",
+        "dark": true
+      },
+      {
+        "id": "coastal",
+        "tier": "ultra",
+        "name": "Konkan Coast",
+        "blurb": "Sea teal & coral, breezy",
+        "primary": "#F97366",
+        "accent": "#0F4C5C",
+        "background": "#F1F8F8",
+        "surface": "#FFFFFF",
+        "text": "#0B2E36",
+        "muted": "#4F7179",
+        "font": "rounded",
+        "radius": 22,
+        "layout": "grid",
+        "header": "hero",
+        "dark": false
+      },
+      {
+        "id": "neon",
+        "tier": "ultra",
+        "name": "Midnight Neon",
+        "blurb": "Night-out glow for bars & lounges",
+        "primary": "#22D3EE",
+        "accent": "#C084FC",
+        "background": "#0A0A14",
+        "surface": "#13131F",
+        "text": "#EEF2FF",
+        "muted": "#9CA3C4",
+        "font": "display",
+        "radius": 20,
+        "layout": "cards",
+        "header": "band",
+        "dark": true
+      }
+    ],
+    "qrThemes": [
+      {
+        "id": "plain",
+        "tier": "starter",
+        "name": "Plain",
+        "blurb": "Just the code",
+        "fg": "#111111",
+        "bg": "#FFFFFF",
+        "bg2": "#FFFFFF",
+        "ink": "#111111",
+        "frame": "#E5E7EB",
+        "dots": false
+      },
+      {
+        "id": "classic",
+        "tier": "starter",
+        "name": "Saffron",
+        "blurb": "Warm saffron card",
+        "fg": "#2B160A",
+        "bg": "#F59E0B",
+        "bg2": "#C2410C",
+        "ink": "#FFFFFF",
+        "frame": "#FFFFFF",
+        "dots": true
+      },
+      {
+        "id": "mono",
+        "tier": "starter",
+        "name": "Mono",
+        "blurb": "Crisp black on white",
+        "fg": "#000000",
+        "bg": "#FFFFFF",
+        "bg2": "#F3F4F6",
+        "ink": "#000000",
+        "frame": "#000000",
+        "dots": false
+      },
+      {
+        "id": "sunset",
+        "tier": "growth",
+        "name": "Sunset",
+        "blurb": "Orange to pink glow",
+        "fg": "#3B0A1E",
+        "bg": "#FB923C",
+        "bg2": "#DB2777",
+        "ink": "#FFFFFF",
+        "frame": "#FFFFFF",
+        "dots": true
+      },
+      {
+        "id": "forest",
+        "tier": "growth",
+        "name": "Forest",
+        "blurb": "Deep green & cream",
+        "fg": "#0F2E1D",
+        "bg": "#166534",
+        "bg2": "#052E16",
+        "ink": "#FEF9E7",
+        "frame": "#FEF9E7",
+        "dots": true
+      },
+      {
+        "id": "ocean",
+        "tier": "growth",
+        "name": "Ocean",
+        "blurb": "Fresh blues",
+        "fg": "#0C2A44",
+        "bg": "#0EA5E9",
+        "bg2": "#1E3A8A",
+        "ink": "#FFFFFF",
+        "frame": "#FFFFFF",
+        "dots": true
+      },
+      {
+        "id": "noir",
+        "tier": "ultra",
+        "name": "Noir Gold",
+        "blurb": "Black card, gold code",
+        "fg": "#111111",
+        "bg": "#1A1712",
+        "bg2": "#050505",
+        "ink": "#E8C872",
+        "frame": "#D4AF37",
+        "dots": true
+      },
+      {
+        "id": "gold",
+        "tier": "ultra",
+        "name": "Gold Foil",
+        "blurb": "Cream with a gold border",
+        "fg": "#3A2A08",
+        "bg": "#FFF8E6",
+        "bg2": "#F3E3B5",
+        "ink": "#6B4E0E",
+        "frame": "#C9A23A",
+        "dots": false
+      },
+      {
+        "id": "royal",
+        "tier": "ultra",
+        "name": "Royal Plum",
+        "blurb": "Plum & gold, festive",
+        "fg": "#2A0F33",
+        "bg": "#5B2179",
+        "bg2": "#260A33",
+        "ink": "#F7D98B",
+        "frame": "#F7D98B",
+        "dots": true
+      },
+      {
+        "id": "tent",
+        "tier": "ultra",
+        "name": "Table Tent",
+        "blurb": "Print and fold for tables",
+        "fg": "#111111",
+        "bg": "#FFFFFF",
+        "bg2": "#FFF7ED",
+        "ink": "#7C2D12",
+        "frame": "#F59E0B",
+        "dots": true
+      }
+    ],
+    "featureCatalog": [
+      {
+        "key": "items",
+        "label": "Dishes on your menu",
+        "group": "Menu",
+        "type": "text",
+        "values": {
+          "starter": "Unlimited",
+          "growth": "Unlimited",
+          "ultra": "Unlimited"
+        }
+      },
+      {
+        "key": "scans",
+        "label": "Menu scans by guests",
+        "group": "Menu",
+        "type": "text",
+        "values": {
+          "starter": "Unlimited",
+          "growth": "Unlimited",
+          "ultra": "Unlimited"
+        }
+      },
+      {
+        "key": "photoScan",
+        "label": "Import menu from a photo",
+        "group": "Menu",
+        "type": "text",
+        "values": {
+          "starter": "Unlimited",
+          "growth": "Unlimited",
+          "ultra": "Unlimited"
+        }
+      },
+      {
+        "key": "photosPerDish",
+        "label": "Photos per dish",
+        "group": "Menu",
+        "type": "number"
+      },
+      {
+        "key": "templates",
+        "label": "Premium menu designs",
+        "group": "Look",
+        "type": "count"
+      },
+      {
+        "key": "qrThemes",
+        "label": "QR code designs",
+        "group": "Look",
+        "type": "count"
+      },
+      {
+        "key": "coverImage",
+        "label": "Logo & cover photo",
+        "group": "Look",
+        "type": "bool"
+      },
+      {
+        "key": "announcement",
+        "label": "Offers banner on menu",
+        "group": "Look",
+        "type": "bool"
+      },
+      {
+        "key": "socialLinks",
+        "label": "Instagram, WhatsApp & map buttons",
+        "group": "Look",
+        "type": "bool"
+      },
+      {
+        "key": "reviewInterceptor",
+        "label": "Guest feedback & Google review link",
+        "group": "Look",
+        "type": "bool"
+      },
+      {
+        "key": "dishBadges",
+        "label": "Bestseller & chef special tags",
+        "group": "Look",
+        "type": "bool"
+      },
+      {
+        "key": "ordering",
+        "label": "Order from the table",
+        "group": "Orders",
+        "type": "bool"
+      },
+      {
+        "key": "kitchen",
+        "label": "Live kitchen screen & printed slips",
+        "group": "Orders",
+        "type": "bool",
+        "from": "ordering"
+      },
+      {
+        "key": "serviceCalls",
+        "label": "Call waiter / ask for bill",
+        "group": "Orders",
+        "type": "bool"
+      },
+      {
+        "key": "offers",
+        "label": "Offer prices & happy hours",
+        "group": "Orders",
+        "type": "bool"
+      },
+      {
+        "key": "addons",
+        "label": "Add-ons (extra cheese, dips…)",
+        "group": "Orders",
+        "type": "bool"
+      },
+      {
+        "key": "maxTables",
+        "label": "Table QR codes",
+        "group": "Orders",
+        "type": "number"
+      },
+      {
+        "key": "analytics",
+        "label": "Sales reports & best sellers",
+        "group": "Business",
+        "type": "bool"
+      },
+      {
+        "key": "customers",
+        "label": "Guest list & export",
+        "group": "Business",
+        "type": "bool"
+      },
+      {
+        "key": "reservations",
+        "label": "Table bookings from your menu",
+        "group": "Business",
+        "type": "bool"
+      },
+      {
+        "key": "menuScheduling",
+        "label": "Timed sections (breakfast, lunch…)",
+        "group": "Business",
+        "type": "bool"
+      },
+      {
+        "key": "inventory",
+        "label": "Stock tracking & low-stock alerts",
+        "group": "Business",
+        "type": "bool"
+      },
+      {
+        "key": "removeBranding",
+        "label": "No “Powered by QR Menu Pro”",
+        "group": "Brand",
+        "type": "bool"
+      },
+      {
+        "key": "prioritySupport",
+        "label": "Priority phone support",
+        "group": "Brand",
+        "type": "bool"
+      }
+    ],
+    "payeeName": "QR Menu Pro"
   },
   "restaurants": [
     {
@@ -30,7 +635,6 @@
       "scanLog": [],
       "joinedDate": "23 Nov 2026",
       "createdAt": "2026-11-23T08:13:28.279Z",
-      "brandColorHex": "#D97706",
       "tables": [],
       "categories": [],
       "items": [],
@@ -46,7 +650,15 @@
         "hash": "6cdc8ca400ba8adec0baccac7d82f10d19258b8f52643182677cde5d2db96db7"
       },
       "theme": {
-        "template": "classic",
+        "template": "haveli",
+        "logoUrl": "",
+        "coverUrl": "",
+        "welcome": "",
+        "announcement": "",
+        "currency": "₹",
+        "showVegToggle": true,
+        "showSearch": true,
+        "qrTheme": "classic",
         "primary": "#D97706",
         "accent": "#1F0F14",
         "background": "#FFFBF5",
@@ -55,19 +667,7 @@
         "radius": 18,
         "layout": "list",
         "showImages": true,
-        "darkMode": "auto",
-        "logoUrl": "",
-        "coverUrl": "",
-        "welcome": "",
-        "announcement": "",
-        "currency": "₹",
-        "showVegToggle": true,
-        "showSearch": true,
-        "qrTheme": "classic"
-      },
-      "aiScans": {
-        "month": "2026-11",
-        "count": 0
+        "darkMode": "auto"
       },
       "notifications": [],
       "orderSeq": 0,
@@ -102,27 +702,9 @@
       "inventory": [],
       "inventoryLogs": [],
       "suppliers": [],
-      "voice": {
-        "enabled": true,
-        "language": "hi",
-        "speed": 1,
-        "speakDishNames": true,
-        "volume": 1,
-        "kitchenSpeaker": true
-      },
-      "crm": {
-        "loyaltyRate": 10,
-        "minRedeemPoints": 50,
-        "vipThresholds": {
-          "silver": 2000,
-          "gold": 5000,
-          "platinum": 10000
-        }
-      },
-      "staff": [],
-      "branches": [],
       "currentPlan": "starter",
-      "plan": "starter"
+      "plan": "starter",
+      "locked": true
     },
     {
       "id": "rest-4e242893e7",
@@ -142,7 +724,6 @@
       "scanLog": [],
       "joinedDate": "23 Nov 2026",
       "createdAt": "2026-11-23T07:54:49.366Z",
-      "brandColorHex": "#D97706",
       "tables": [
         "Table 1",
         "Table 2",
@@ -171,7 +752,8 @@
           "imageUrl": "",
           "tags": [],
           "variants": [],
-          "modifiers": []
+          "modifiers": [],
+          "images": []
         },
         {
           "id": "d_mwsz03wpq3p5",
@@ -187,7 +769,8 @@
           "imageUrl": "",
           "tags": [],
           "variants": [],
-          "modifiers": []
+          "modifiers": [],
+          "images": []
         },
         {
           "id": "d_mwsz03wqvstv",
@@ -203,7 +786,8 @@
           "imageUrl": "",
           "tags": [],
           "variants": [],
-          "modifiers": []
+          "modifiers": [],
+          "images": []
         },
         {
           "id": "d_mwsz03wra5sf",
@@ -219,7 +803,8 @@
           "imageUrl": "",
           "tags": [],
           "variants": [],
-          "modifiers": []
+          "modifiers": [],
+          "images": []
         },
         {
           "id": "d_mwsz03ws20ck",
@@ -235,7 +820,8 @@
           "imageUrl": "",
           "tags": [],
           "variants": [],
-          "modifiers": []
+          "modifiers": [],
+          "images": []
         },
         {
           "id": "d_mwsz03wtoax1",
@@ -251,7 +837,8 @@
           "imageUrl": "",
           "tags": [],
           "variants": [],
-          "modifiers": []
+          "modifiers": [],
+          "images": []
         },
         {
           "id": "d_mwsz03wu4r44",
@@ -267,7 +854,8 @@
           "imageUrl": "",
           "tags": [],
           "variants": [],
-          "modifiers": []
+          "modifiers": [],
+          "images": []
         },
         {
           "id": "d_mwsz03wvze12",
@@ -283,7 +871,8 @@
           "imageUrl": "",
           "tags": [],
           "variants": [],
-          "modifiers": []
+          "modifiers": [],
+          "images": []
         },
         {
           "id": "d_mwsz03wwizn7",
@@ -299,7 +888,8 @@
           "imageUrl": "",
           "tags": [],
           "variants": [],
-          "modifiers": []
+          "modifiers": [],
+          "images": []
         },
         {
           "id": "d_mwsz03wxkszs",
@@ -315,11 +905,12 @@
           "imageUrl": "",
           "tags": [],
           "variants": [],
-          "modifiers": []
+          "modifiers": [],
+          "images": []
         }
       ],
       "subscription": {
-        "plan": "master",
+        "plan": "ultra",
         "status": "trial",
         "trialStartedAt": "2026-11-23T07:54:49.366Z",
         "trialEndsAt": "2026-11-30T07:54:49.366Z",
@@ -330,7 +921,15 @@
         "hash": "93ef483efa5dbbbd01ffba5ea1bd3f4d32ec482794e095bdfdaf4bd5d58ddeca"
       },
       "theme": {
-        "template": "classic",
+        "template": "haveli",
+        "logoUrl": "",
+        "coverUrl": "",
+        "welcome": "",
+        "announcement": "",
+        "currency": "₹",
+        "showVegToggle": true,
+        "showSearch": true,
+        "qrTheme": "classic",
         "primary": "#D97706",
         "accent": "#1F0F14",
         "background": "#FFFBF5",
@@ -339,19 +938,7 @@
         "radius": 18,
         "layout": "list",
         "showImages": true,
-        "darkMode": "light",
-        "logoUrl": "",
-        "coverUrl": "",
-        "welcome": "",
-        "announcement": "",
-        "currency": "₹",
-        "showVegToggle": true,
-        "showSearch": true,
-        "qrTheme": "classic"
-      },
-      "aiScans": {
-        "month": "2026-11",
-        "count": 0
+        "darkMode": "light"
       },
       "notifications": [
         {
@@ -442,27 +1029,9 @@
       "inventory": [],
       "inventoryLogs": [],
       "suppliers": [],
-      "voice": {
-        "enabled": true,
-        "language": "hi",
-        "speed": 1,
-        "speakDishNames": true,
-        "volume": 1,
-        "kitchenSpeaker": true
-      },
-      "crm": {
-        "loyaltyRate": 10,
-        "minRedeemPoints": 50,
-        "vipThresholds": {
-          "silver": 2000,
-          "gold": 5000,
-          "platinum": 10000
-        }
-      },
-      "staff": [],
-      "branches": [],
-      "currentPlan": "master",
-      "plan": "master"
+      "currentPlan": "ultra",
+      "plan": "ultra",
+      "locked": true
     },
     {
       "id": "rest-a1f9fd0643",
@@ -482,7 +1051,6 @@
       "scanLog": [],
       "joinedDate": "20 Nov 2026",
       "createdAt": "2026-11-20T06:19:49.860Z",
-      "brandColorHex": "#D97706",
       "tables": [
         "Table 1",
         "Table 2",
@@ -503,7 +1071,15 @@
         "hash": "303be1b7688c36cf97f376a3c1352bab94be703d022a2550689980b963fce430"
       },
       "theme": {
-        "template": "classic",
+        "template": "haveli",
+        "logoUrl": "",
+        "coverUrl": "",
+        "welcome": "",
+        "announcement": "",
+        "currency": "₹",
+        "showVegToggle": true,
+        "showSearch": true,
+        "qrTheme": "classic",
         "primary": "#D97706",
         "accent": "#1F0F14",
         "background": "#FFFBF5",
@@ -512,19 +1088,7 @@
         "radius": 18,
         "layout": "list",
         "showImages": true,
-        "darkMode": "auto",
-        "logoUrl": "",
-        "coverUrl": "",
-        "welcome": "",
-        "announcement": "",
-        "currency": "₹",
-        "showVegToggle": true,
-        "showSearch": true,
-        "qrTheme": "classic"
-      },
-      "aiScans": {
-        "month": "2026-11",
-        "count": 0
+        "darkMode": "auto"
       },
       "notifications": [],
       "orderSeq": 0,
@@ -561,25 +1125,7 @@
       "inventory": [],
       "inventoryLogs": [],
       "suppliers": [],
-      "voice": {
-        "enabled": true,
-        "language": "hi",
-        "speed": 1,
-        "speakDishNames": true,
-        "volume": 1,
-        "kitchenSpeaker": true
-      },
-      "crm": {
-        "loyaltyRate": 10,
-        "minRedeemPoints": 50,
-        "vipThresholds": {
-          "silver": 2000,
-          "gold": 5000,
-          "platinum": 10000
-        }
-      },
-      "staff": [],
-      "branches": []
+      "locked": true
     }
   ],
   "orders": [
@@ -914,5 +1460,7 @@
     }
   ],
   "leads": [],
-  "coupons": []
+  "coupons": [],
+  "checkouts": [],
+  "pushSubs": []
 }
