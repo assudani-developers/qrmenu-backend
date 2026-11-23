@@ -367,6 +367,21 @@ router.get('/settings', (req, res) => {
   const c = inMemoryData.adminConfig;
   res.json({ success: true, settings: { ...c.settings, adminUpiId: c.adminUpiId, adminPhone: c.adminPhone, supportEmail: c.supportEmail, payeeName: c.payeeName || '' }, websiteUrl: S.menuBaseUrl() });
 });
+
+router.post('/test-email', async (req, res) => {
+  try {
+    const mailer = require('../services/mailer');
+    const to = req.body?.to || 'piyushassudani96@gmail.com';
+    const result = await mailer.sendTestEmail({ to });
+    if (result.success) {
+      res.json({ success: true, message: `Test email sent to ${to}`, messageId: result.messageId, simulated: !!result.simulated });
+    } else {
+      res.status(500).json({ success: false, error: result.error || result.reason });
+    }
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
 router.put('/settings', (req, res) => {
   const c = inMemoryData.adminConfig; const b = req.body || {};
   if (typeof b.adminUpiId === 'string' && b.adminUpiId.trim() && !/^[\w.\-]{2,}@[a-zA-Z]{2,}$/.test(b.adminUpiId.trim())) return bad(res, 'That UPI ID does not look right (example: name@okhdfc)');
