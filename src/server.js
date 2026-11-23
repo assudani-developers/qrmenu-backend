@@ -28,7 +28,7 @@ const io = new Server(server, {
 app.set('io', io);
 require('./services/realtime').init(io);
 
-const PORT = process.env.PORT || 5001;
+const PORT = process.env.PORT || 5007;
 
 // Security & Optimization Middlewares
 app.use(ipBlockerMiddleware); // Active IP Quarantine & Abuse Firewall
@@ -107,7 +107,7 @@ process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 if (process.env.NODE_ENV !== 'test') {
   server.on('error', (err) => {
     if (err.code === 'EADDRINUSE') {
-      const fallbackPort = Number(PORT) === 5001 ? 5000 : Number(PORT) + 1;
+      const fallbackPort = Number(PORT) === 5007 ? 5008 : Number(PORT) + 1;
       console.warn(`\n⚠️  [Server Warning] Port ${PORT} is occupied.`);
       console.log(`🔄 [Server] Auto-binding to fallback port ${fallbackPort}...`);
       server.listen(fallbackPort, '0.0.0.0', () => {

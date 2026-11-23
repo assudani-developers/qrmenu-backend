@@ -16,7 +16,7 @@ const call = async (method, url, body, token, headers = {}) => {
 };
 
 test.before(async () => {
-  server = spawn('node', [path.join(__dirname, '../src/server.js')], { env: { ...process.env, PORT, DB_FILE: path.join(dir, 'db.json'), OCR_PRELOAD: '0', ADMIN_EMAIL: 'a@t.io', ADMIN_PASSWORD: 'pw-test-1' }, stdio: 'ignore' });
+  server = spawn('node', [path.join(__dirname, '../src/server.js')], { env: { ...process.env, PORT, DB_FILE: path.join(dir, 'db.json'), OCR_PRELOAD: '0', RATE_LIMIT_MAX: '5000', ADMIN_EMAIL: 'a@t.io', ADMIN_PASSWORD: 'pw-test-1' }, stdio: 'ignore' });
   for (let i = 0; i < 40; i++) { try { if ((await fetch(BASE + '/health')).ok) return; } catch (_) {} await new Promise((r) => setTimeout(r, 250)); }
   throw new Error('server did not start');
 });
@@ -30,41 +30,70 @@ const menu = { categories: [{ name: 'Starters', items: [{ name: 'Paneer Tikka', 
 
 test('signup starts a trial and returns hosted links; fresh DB has no dummy data', async () => {
   const plans = await call('GET', '/owner/plans');
-  assert.ok(plans.plans.length >= 4);
-  assert.ok(plans.templates.length >= 5);
+  assert.deepEqual(plans.plans.map((p) => p.id), ['starter', 'growth', 'ultra']);
+  assert.equal(plans.templates.length, 10);
+  assert.equal(plans.qrThemes.length, 10);
+  assert.deepEqual(plans.plans.map((p) => p.features.templates.length), [3, 6, 10]);
+  assert.deepEqual(plans.plans.map((p) => p.features.qrThemes.length), [3, 6, 10]);
+  assert.deepEqual(plans.plans.map((p) => p.features.photosPerDish), [1, 3, 3]);
+  assert.ok(plans.plans.find((p) => p.id === 'ultra').popular);
+  assert.ok(!JSON.stringify(plans).includes('customSlug') && !JSON.stringify(plans).includes('aiScansPerMonth'));
+  assert.equal((await call('POST', '/owner/signup', { name: 'No Owner', phone: '9000000001', password: 'secret1', plan: 'growth' })).status, 400); // owner name required
   const r = await call('POST', '/owner/signup', { name: 'Test Cafe', ownerName: 'Tester', phone: '9111111111', password: 'secret1', plan: 'growth' });
   assert.equal(r.status, 201);
   assert.equal(r.restaurant.subscription.status, 'trial');
-  assert.match(r.restaurant.links.qrUrl, /\/q\//);
+  assert.match(r.restaurant.links.qrUrl, /\/m\/[A-Z2-9]{7}$/);
+  assert.equal(r.restaurant.links.qrUrl, r.restaurant.links.menuUrl);
   growth = { token: r.token, rest: r.restaurant };
-  const s = await call('POST', '/owner/signup', { name: 'Tiny Tea', phone: '9222222222', password: 'secret1', plan: 'starter' });
+  const s = await call('POST', '/owner/signup', { name: 'Tiny Tea', ownerName: 'Tia', phone: '9222222222', password: 'secret1', plan: 'starter' });
   starter = { token: s.token, rest: s.restaurant };
-  const dup = await call('POST', '/owner/signup', { name: 'Dup', phone: '9111111111', password: 'secret1', plan: 'growth' });
+  const dup = await call('POST', '/owner/signup', { name: 'Dup', ownerName: 'Dev', phone: '9111111111', password: 'secret1', plan: 'growth' });
   assert.equal(dup.status, 409);
   assert.equal((await call('POST', '/owner/login', { phone: '9111111111', password: 'bad' })).status, 401);
 });
 
-test('direct-payment signup: account is pending until the admin verifies the UTR', async () => {
+test('website checkout: bill, coupon, UTR, admin verifies, trial coupons extend instantly', async () => {
   const { token: at } = await call('POST', '/admin/login', { email: 'a@t.io', password: 'pw-test-1' });
+  assert.equal((await call('PUT', '/admin/settings', { adminUpiId: 'not a upi' }, at)).status, 400);
   await call('PUT', '/admin/settings', { adminUpiId: 'pay@bank' }, at);
-  assert.equal((await call('POST', '/owner/signup', { name: 'Pay Cafe', phone: '9444444444', password: 'secret1', plan: 'growth', mode: 'pay' })).status, 400); // no UTR
-  const r = await call('POST', '/owner/signup', { name: 'Pay Cafe', phone: '9444444444', password: 'secret1', plan: 'growth', mode: 'pay', utrRef: 'UTR123456789' });
-  assert.equal(r.status, 201);
-  assert.equal(r.restaurant.subscription.status, 'pending');
-  assert.equal((await call('GET', `/menu/${r.restaurant.slug}`)).restaurant.live, false);
+  const r = await call('POST', '/owner/signup', { name: 'Pay Cafe', ownerName: 'Pia', phone: '9444444444', password: 'secret1', plan: 'growth' });
+  assert.equal(r.restaurant.subscription.status, 'trial'); // signup never takes money
+  const link = await call('POST', '/owner/subscription/checkout-link', { plan: 'ultra' }, r.token);
+  assert.match(link.url, /\/pay\/[a-f0-9]{24}$/);
+  const id = link.url.split('/').pop();
+  const view = await call('GET', `/pay/${id}`);
+  assert.equal(view.plan, 'ultra');
+  assert.equal(view.payee.upiId, 'pay@bank');
+  assert.ok(!view.restaurant.phone.startsWith('94')); // masked
+  assert.equal((await call('GET', '/pay/deadbeefdeadbeefdeadbeef')).status, 404);
+  await call('POST', '/admin/coupons', { code: 'OFF20', type: 'percent', value: 20 }, at);
+  await call('POST', '/admin/coupons', { code: 'BONUS5', type: 'trial_days', value: 5 }, at);
+  const q = await call('POST', `/pay/${id}/quote`, { plan: 'ultra', coupon: 'off20' });
+  assert.deepEqual([q.original, q.discount, q.final], [699, 140, 559]);
+  assert.equal((await call('POST', `/pay/${id}/submit`, { plan: 'ultra', coupon: 'OFF20', utr: '12' })).status, 400);
+  const sub = await call('POST', `/pay/${id}/submit`, { plan: 'ultra', coupon: 'OFF20', utr: '412345678901' });
+  assert.equal(sub.payment.status, 'pending');
+  assert.equal(sub.payment.amount, 559);
+  assert.equal((await call('POST', `/pay/${id}/submit`, { plan: 'ultra', utr: '412345678901' })).status, 409);
   const pays = await call('GET', '/admin/payments', null, at);
-  const p = pays.payments.find((x) => x.utrRef === 'UTR123456789');
-  assert.equal(p.status, 'pending'); assert.equal(p.amount, 399);
-  assert.equal((await call('POST', '/owner/signup', { name: 'Dup', phone: '9555555555', password: 'secret1', plan: 'growth', mode: 'pay', utrRef: 'UTR123456789' })).status, 409);
+  const p = pays.payments.find((x) => x.utrRef === '412345678901');
+  assert.equal(p.source, 'website');
   await call('POST', `/admin/payments/${p.id}/verify`, null, at);
+  const after = await call('GET', `/pay/${id}`);
+  assert.equal(after.payment.status, 'verified');
+  assert.ok(after.payment.paidUntil);
   const me = await call('GET', '/owner/me', null, r.token);
   assert.equal(me.restaurant.subscription.status, 'active');
-  // free trial with a trial-days coupon works, a percent coupon is refused for trials
-  await call('POST', '/admin/coupons', { code: 'BONUS5', type: 'trial_days', value: 5 }, at);
-  await call('POST', '/admin/coupons', { code: 'OFF20', type: 'percent', value: 20 }, at);
-  assert.equal((await call('POST', '/owner/signup', { name: 'T1', phone: '9666666666', password: 'secret1', plan: 'starter', couponCode: 'OFF20' })).status, 400);
-  const t = await call('POST', '/owner/signup', { name: 'T2', phone: '9777777777', password: 'secret1', plan: 'starter', couponCode: 'BONUS5' });
+  assert.equal(me.restaurant.subscription.plan, 'ultra');
+  // signup: percent coupon refused, trial coupon adds days
+  assert.equal((await call('POST', '/owner/signup', { name: 'T1', ownerName: 'Asha', phone: '9666666666', password: 'secret1', plan: 'starter', couponCode: 'OFF20' })).status, 400);
+  const t = await call('POST', '/owner/signup', { name: 'T2', ownerName: 'Bala', phone: '9777777777', password: 'secret1', plan: 'starter', couponCode: 'BONUS5' });
   assert.equal(t.restaurant.subscription.daysLeft, 12);
+  // trial coupon on the website checkout
+  const l2 = (await call('POST', '/owner/subscription/checkout-link', {}, t.token)).url.split('/').pop();
+  assert.equal((await call('POST', `/pay/${l2}/trial-coupon`, { coupon: 'OFF20' })).status, 400);
+  const ext = await call('POST', `/pay/${l2}/trial-coupon`, { coupon: 'BONUS5' });
+  assert.equal(ext.subscription.daysLeft, 17);
 });
 
 test('menu import + server-priced ordering for Growth; Starter cannot take orders', async () => {
@@ -108,18 +137,31 @@ test('plans: unlimited dishes everywhere, locked features return an upgrade hint
   const p = await call('GET', '/owner/plans');
   assert.ok(p.featureCatalog.length > 10);
   assert.ok(p.plans.every((x) => x.features.maxItems === undefined));
-  // Starter can add far more than the old 50-dish limit
+  // Starter can add any number of dishes
   const many = { categories: [{ name: 'Big', items: Array.from({ length: 80 }, (_, i) => ({ name: `Dish ${i}`, price: 10 + i })) }] };
   assert.ok((await call('POST', '/owner/menu/import', many, starter.token)).success);
-  const locked = await call('PATCH', '/owner/theme', { announcement: 'Happy hour 5-7' }, starter.token);
+  // starter gets the offers banner, but not Growth designs
+  assert.ok((await call('PATCH', '/owner/theme', { announcement: 'Happy hour 5-7', template: 'cafe' }, starter.token)).success);
+  const locked = await call('PATCH', '/owner/theme', { template: 'chaat' }, starter.token);
   assert.equal(locked.status, 403);
   assert.equal(locked.upgrade, true);
   assert.equal(locked.requiredPlan, 'growth');
   const qr = await call('PATCH', '/owner/theme', { qrTheme: 'gold' }, growth.token);
-  assert.equal(qr.requiredPlan, 'elite');
-  assert.ok((await call('PATCH', '/owner/theme', { qrTheme: 'sunset', announcement: 'Happy hour 5-7' }, growth.token)).success);
-  const pub = await call('GET', `/menu/${growth.rest.slug}`);
+  assert.equal(qr.requiredPlan, 'ultra');
+  assert.equal((await call('PATCH', '/owner/theme', { template: 'nope' }, growth.token)).status, 400);
+  assert.ok((await call('PATCH', '/owner/theme', { qrTheme: 'sunset', template: 'garden', announcement: 'Happy hour 5-7' }, growth.token)).success);
+  const pub = await call('GET', `/menu/${growth.rest.shortId}`);
   assert.equal(pub.restaurant.theme.announcement, 'Happy hour 5-7');
+  assert.equal(pub.restaurant.template.id, 'garden');
+  assert.equal(pub.restaurant.template.primary, '#15803D');
+  // photos per dish: 1 on Starter, 3 on Growth
+  const img = (n) => Array.from({ length: n }, (_, i) => `https://img.example/${i}.webp`);
+  assert.equal((await call('POST', '/owner/menu/items', { name: 'Two pics', price: 10, images: img(2) }, starter.token)).requiredPlan, 'growth');
+  const one = await call('POST', '/owner/menu/items', { name: 'One pic', price: 10, images: img(1) }, starter.token);
+  assert.equal(one.item.imageUrl, 'https://img.example/0.webp');
+  const three = await call('POST', '/owner/menu/items', { name: 'Three pics', price: 10, images: img(3) }, growth.token);
+  assert.equal(three.item.images.length, 3);
+  assert.equal((await call('PATCH', `/owner/menu/items/${three.item.id}`, { images: img(4) }, growth.token)).status, 403);
 });
 
 test('realtime: owner socket receives new orders and status updates; tenants isolated', async () => {
@@ -152,7 +194,7 @@ test('realtime: owner socket receives new orders and status updates; tenants iso
   [owner, other, guest, badSock].forEach((s) => s.close());
 });
 
-test('operations: add-ons, offer price, dine-in table orders, store closed, service calls, bookings, schedule, CRM, reports', async () => {
+test('operations: add-ons, offer price, dine-in table orders, store closed, service calls, bookings, schedule, guest list, reports', async () => {
   const g = growth.token;
   const d = await call('POST', '/owner/menu/items', { name: 'Margherita', category: 'Pizza', price: 300, offerPrice: 250, addons: [{ name: 'Extra cheese', price: 40 }], diet: ['jain', 'bogus'], spiceLevel: 'mild', prepTime: 15 }, g);
   assert.equal(d.status, 201);
@@ -189,10 +231,10 @@ test('operations: add-ons, offer price, dine-in table orders, store closed, serv
   assert.equal((await call('GET', '/owner/service-calls', null, g)).open, 0);
   assert.equal((await call('POST', '/service-calls', { slug: starter.rest.slug, table: 'Table 1', type: 'waiter' })).status, 403);
 
-  // bookings & timed sections are Elite
+  // bookings & timed sections are Ultra
   assert.equal((await call('POST', '/reservations', { slug, name: 'A', phone: '9876543210', date: '2099-01-01', time: '20:00', guests: 2 })).status, 403);
   assert.equal((await call('PUT', '/owner/menu/schedule', { schedule: { Pizza: { from: '07:00', to: '11:00' } } }, g)).upgrade, true);
-  const e = await call('POST', '/owner/signup', { name: 'Elite House', phone: '9555555555', password: 'secret1', plan: 'elite' });
+  const e = await call('POST', '/owner/signup', { name: 'Ultra House', ownerName: 'Uma', phone: '9555555555', password: 'secret1', plan: 'ultra' });
   const bk = await call('POST', '/reservations', { slug: e.restaurant.slug, name: 'Ravi', phone: '9876543210', date: '2099-01-01', time: '20:00', guests: 4 });
   assert.equal(bk.status, 201);
   assert.equal((await call('PATCH', `/owner/reservations/${bk.reservation.id}`, { status: 'confirmed' }, e.token)).reservation.status, 'confirmed');
@@ -207,9 +249,10 @@ test('operations: add-ons, offer price, dine-in table orders, store closed, serv
   assert.equal((await call('POST', '/orders', { slug: e.restaurant.slug, table: 'T1', items: [{ dishId: ep.items[0].id, qty: 1 }] })).status, 409);
 
   // CRM + reports
-  const cr = await call('GET', '/owner/customers', null, g);
-  assert.ok(cr.customers.some((c) => c.phone === '9876500000' && c.favourite.startsWith('Margherita')));
-  assert.equal((await call('GET', '/owner/customers', null, starter.token)).upgrade, true);
+  const locked = await call('GET', '/owner/customers', null, g); // guest list is Ultra
+  assert.equal(locked.upgrade, true);
+  assert.equal(locked.requiredPlan, 'ultra');
+  assert.ok((await call('GET', '/owner/customers', null, e.token)).success);
   const rep = await call('GET', '/owner/reports?days=7', null, g);
   assert.ok(rep.revenue >= 580);
   assert.equal(rep.daily.length, 7);
@@ -218,8 +261,12 @@ test('operations: add-ons, offer price, dine-in table orders, store closed, serv
 });
 
 
-test('profile: account edit + password change; tenants are isolated', async () => {
-  assert.ok((await call('PATCH', '/owner/account', { ownerName: 'New Name', email: 'x@y.com' }, growth.token)).success);
+test('profile: name, owner and phone are fixed; email + password change; tenants are isolated', async () => {
+  assert.equal((await call('PATCH', '/owner/account', { ownerName: 'New Name' }, growth.token)).status, 403);
+  assert.equal((await call('PATCH', '/owner/account', { phone: '9000000099' }, growth.token)).status, 403);
+  assert.equal((await call('PATCH', '/owner/profile', { name: 'Renamed' }, growth.token)).status, 403);
+  assert.ok((await call('PATCH', '/owner/profile', { name: 'Test Cafe', tagline: 'Fresh daily' }, growth.token)).success); // unchanged name is fine
+  assert.ok((await call('PATCH', '/owner/account', { ownerName: 'Tester', email: 'x@y.com' }, growth.token)).success);
   assert.equal((await call('POST', '/owner/account/password', { current: 'nope', next: 'abcdef' }, growth.token)).status, 403);
   assert.ok((await call('POST', '/owner/account/password', { current: 'secret1', next: 'abcdef' }, growth.token)).success);
   assert.ok((await call('POST', '/owner/login', { phone: '9111111111', password: 'abcdef' })).success);
@@ -257,7 +304,8 @@ test('admin has full control: menu, orders, feedback, manual payment, account, e
   assert.equal((await call('GET', '/owner/me', null, starter.token)).restaurant.subscription.status, 'active');
   assert.ok((await call('DELETE', `/admin/payments/${pay.payment.id}`, null, token)).success);
   assert.equal((await call('POST', '/admin/account', { currentPassword: 'wrong', newPassword: 'newpass-123' }, token)).status, 403);
-  assert.ok((await call('POST', '/admin/account', { currentPassword: 'pw-test-1', newPassword: 'newpass-123' }, token)).success);
+  const acc = await call('POST', '/admin/account', { currentPassword: 'pw-test-1', newPassword: 'newpass-123' }, token);
+  assert.ok(acc.success, JSON.stringify(acc));
   assert.ok((await call('POST', '/admin/login', { email: 'a@t.io', password: 'newpass-123' })).success);
   assert.equal((await call('POST', '/admin/login', { email: 'a@t.io', password: 'pw-test-1' })).status, 401);
   assert.ok((await call('POST', '/admin/backup', {}, token)).success);
@@ -269,10 +317,18 @@ test('offline OCR reads a menu photo (python worker, no cloud API)', { timeout: 
   const img = path.join(__dirname, '../test_data/synthetic/a_single_dots.png');
   if (!fs.existsSync(img)) return t.skip('synthetic menu missing (run test_data/gen_menus.py)');
   server.kill();
-  server = spawn('node', [path.join(__dirname, '../src/server.js')], { env: { ...process.env, PORT, DB_FILE: path.join(dir, 'db.json'), ADMIN_EMAIL: 'a@t.io', ADMIN_PASSWORD: 'pw-test-1' }, stdio: 'ignore' });
+  server = spawn('node', [path.join(__dirname, '../src/server.js')], { env: { ...process.env, PORT, DB_FILE: path.join(dir, 'db.json'), RATE_LIMIT_MAX: '5000', ADMIN_EMAIL: 'a@t.io', ADMIN_PASSWORD: 'pw-test-1' }, stdio: 'ignore' });
   for (let i = 0; i < 40; i++) { try { if ((await fetch(BASE + '/health')).ok) break; } catch (_) {} await new Promise((r) => setTimeout(r, 250)); }
   const login = await call('POST', '/owner/login', { phone: '9111111111', password: 'abcdef' });
   const data = 'data:image/png;base64,' + fs.readFileSync(img).toString('base64');
+  // instant clarity check: the clear page passes, a blurred copy is refused before OCR runs
+  const sharp = require('sharp');
+  const clear = await call('POST', '/owner/menu/check-photo', { image: data }, login.token);
+  assert.equal(clear.quality.ok, true);
+  const blurred = 'data:image/png;base64,' + (await sharp(fs.readFileSync(img)).blur(5).toBuffer()).toString('base64');
+  const bq = await call('POST', '/owner/menu/check-photo', { image: blurred }, login.token);
+  assert.equal(bq.quality.issue, 'blur');
+  assert.equal((await call('POST', '/owner/menu/scan', { images: [{ data: blurred }] }, login.token)).status, 422);
   const r = await call('POST', '/owner/menu/scan', { images: [{ data }] }, login.token);
   assert.ok(r.success, r.message);
   assert.equal(r.menu.engine, 'local-ocr');

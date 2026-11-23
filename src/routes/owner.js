@@ -40,17 +40,24 @@ function summary(r) {
     totalScans: r.totalScans || 0, createdAt: r.createdAt,
     subscription: { ...sub, plan: sub.plan, planDetails: plans[sub.plan], trialEndsAt: r.subscription.trialEndsAt, trialStartedAt: r.subscription.trialStartedAt },
     links: S.publicLinks(r),
-    aiScans: { used: r.aiScans.count, limit: sub.features.aiScansPerMonth },
+    locked: { name: true, ownerName: true, phone: true },
   };
 }
 
-function resetAiMonth(r) {
-  const m = new Date().toISOString().slice(0, 7);
-  if (r.aiScans.month !== m) r.aiScans = { month: m, count: 0 };
-}
 
 /* ---------- public: plans & coupon check ---------- */
-router.get('/plans', (req, res) => res.json({ success: true, featureCatalog: S.FEATURE_CATALOG, planOrder: S.PLAN_ORDER, qrThemes: S.ALL_QR_THEMES, trialEnabled: inMemoryData.adminConfig.settings.trialEnabled, trialDays: inMemoryData.adminConfig.settings.trialDays, plans: Object.values(S.getPlans()), templates: S.templateList(), payment: { upiId: inMemoryData.adminConfig.adminUpiId, payee: 'QR Menu Pro' }, support: { phone: inMemoryData.adminConfig.adminPhone, email: inMemoryData.adminConfig.supportEmail } }));
+/** Everything the app needs to render plans, designs and support — all from the database. */
+function catalogue() {
+  const c = inMemoryData.adminConfig;
+  return {
+    featureCatalog: S.catalog(), planOrder: S.planOrder(), plans: Object.values(S.getPlans()),
+    templates: S.templates(), qrThemes: S.qrThemes(),
+    trialEnabled: c.settings.trialEnabled, trialDays: c.settings.trialDays, appPaymentLinks: c.settings.appPaymentLinks !== false,
+    brandName: c.settings.brandName || 'QR Menu Pro', websiteUrl: S.menuBaseUrl(),
+    support: { phone: c.adminPhone, email: c.supportEmail },
+  };
+}
+router.get('/plans', (req, res) => res.json({ success: true, ...catalogue() }));
 
 router.post('/coupons/validate', (req, res) => {
   const { code, plan } = req.body || {};
@@ -61,57 +68,33 @@ router.post('/coupons/validate', (req, res) => {
 
 /* ---------- auth ---------- */
 router.post('/signup', (req, res) => {
-  const { name, ownerName, phone, password, city, plan, cuisine, mode = 'trial', couponCode, utrRef } = req.body || {};
+  const { name, ownerName, phone, password, city, plan, cuisine, couponCode } = req.body || {};
   const settings = inMemoryData.adminConfig.settings;
   if (!settings.signupsOpen) return bad(res, 'Signups are temporarily closed', 403);
   if (!name || String(name).trim().length < 2) return bad(res, 'Enter your restaurant name');
+  if (!ownerName || String(ownerName).trim().length < 2) return bad(res, 'Enter your name');
   if (!/^\+?[0-9 ]{10,15}$/.test(String(phone || ''))) return bad(res, 'Enter a valid mobile number');
   if (!password || String(password).length < 6) return bad(res, 'Password must be at least 6 characters');
-  if (!S.getPlans()[plan]) return bad(res, 'Choose a package');
+  if (!S.getPlans()[plan]) return bad(res, 'Choose a plan');
   const cleanPhone = String(phone).replace(/\s/g, '');
   if (inMemoryData.restaurants.some((r) => r.owner && String(r.phone).replace(/\s/g, '') === cleanPhone)) return bad(res, 'This number is already registered. Please sign in.', 409);
-
+  // Every account starts on the free trial; paying happens later on the website.
   let price = null;
-  if (mode === 'pay') {
-    if (!inMemoryData.adminConfig.adminUpiId) return bad(res, 'Online payment is not set up yet. Please start the free trial or contact support.', 503);
-    if (!/^[A-Za-z0-9]{8,24}$/.test(String(utrRef || '').trim())) return bad(res, 'Enter the UPI reference / UTR number from your payment app');
+  if (couponCode) {
     price = S.priceWithCoupon(plan, couponCode);
     if (!price.ok) return bad(res, price.error);
-    if (price.coupon && price.coupon.type === 'trial_days') return bad(res, 'That coupon is for free trials — use it when starting the trial');
-    if (inMemoryData.payments.some((p) => p.utrRef === String(utrRef).trim())) return bad(res, 'This payment reference was already used', 409);
-  } else {
-    if (settings.trialEnabled === false) return bad(res, 'Free trial is not available right now. Please choose direct payment.');
-    if (couponCode) {
-      price = S.priceWithCoupon(plan, couponCode);
-      if (!price.ok) return bad(res, price.error);
-      if (!(price.coupon && price.coupon.type === 'trial_days')) return bad(res, 'That coupon applies when you pay — switch to direct payment to use it');
-    }
+    if (!(price.coupon && price.coupon.type === 'trial_days')) return bad(res, 'Discount coupons apply when you pay. Add this one at checkout.');
   }
-
-  const r = S.createRestaurant({ name, ownerName, phone: cleanPhone, password, city, plan, cuisine });
-  let payment = null;
-  if (mode === 'pay') {
-    r.subscription.status = 'pending';
-    r.subscription.trialEndsAt = null;
-    if (price.coupon) S.findCoupon(couponCode).used += 1;
-    payment = {
-      id: `TXN-${Date.now().toString().slice(-6)}`, restaurantId: r.id, restaurantName: r.name, ownerName: r.ownerName, phone: r.phone, planId: plan,
-      amount: price.final, listPrice: price.original, coupon: price.coupon ? price.coupon.code : null, method: 'UPI', utrRef: String(utrRef).trim(),
-      payeeUpi: inMemoryData.adminConfig.adminUpiId, status: 'pending', source: 'signup', date: new Date().toISOString(),
-    };
-    inMemoryData.payments.unshift(payment);
-    RT.toAdmin('payment:new', { payment });
-    recordActivity('payment', 'Signup with direct payment', `${r.name} paid ₹${price.final} for ${plan}. Awaiting verification.`);
-  } else {
-    if (price && price.coupon) {
-      S.findCoupon(couponCode).used += 1;
-      r.subscription.trialEndsAt = new Date(new Date(r.subscription.trialEndsAt).getTime() + price.extraTrialDays * S.DAY).toISOString();
-    }
-    recordActivity('restaurant', 'New signup', `${r.name} joined on the ${plan} trial.`);
+  const r = S.createRestaurant({ name: String(name).trim(), ownerName: String(ownerName).trim(), phone: cleanPhone, password, city, plan, cuisine });
+  if (price && price.coupon) {
+    S.findCoupon(couponCode).used += 1;
+    r.subscription.trialEndsAt = new Date(new Date(r.subscription.trialEndsAt).getTime() + price.extraTrialDays * S.DAY).toISOString();
   }
+  recordActivity('restaurant', 'New signup', `${r.name} joined on the ${S.getPlans()[r.subscription.plan].name} trial.`);
   persistDb();
   RT.toAdmin('restaurant:new', { id: r.id, name: r.name });
-  return res.status(201).json({ success: true, token: generateToken({ role: 'owner', restaurantId: r.id }), restaurant: summary(r), payment });
+  require('../services/push').toAdmins({ title: 'New restaurant signed up', body: `${r.name} · ${r.city || ''} · ${S.getPlans()[r.subscription.plan].name} trial`, url: '/dashboard/restaurants' });
+  return res.status(201).json({ success: true, token: generateToken({ role: 'owner', restaurantId: r.id }), restaurant: summary(r) });
 });
 
 router.post('/login', (req, res) => {
@@ -124,7 +107,7 @@ router.post('/login', (req, res) => {
 
 router.use(ownerAuth);
 
-router.get('/me', (req, res) => res.json({ success: true, restaurant: summary(req.rest), plans: Object.values(S.getPlans()), featureCatalog: S.FEATURE_CATALOG }));
+router.get('/me', (req, res) => res.json({ success: true, restaurant: summary(req.rest), ...catalogue() }));
 
 /* ---------- profile ---------- */
 router.patch('/profile', (req, res) => {
@@ -132,31 +115,25 @@ router.patch('/profile', (req, res) => {
   const f = S.subscriptionState(r).features;
   const b = req.body || {};
   if (b.taxPercent !== undefined) r.taxPercent = Math.max(0, Math.min(28, Number(b.taxPercent) || 0));
-  if (typeof b.name === 'string' && b.name.trim().length < 2) return bad(res, 'Restaurant name is too short');
+  if (typeof b.name === 'string' && b.name.trim() !== r.name) return bad(res, 'Your restaurant name is fixed after sign-up. Contact support to correct a spelling mistake.', 403);
   if (typeof b.upiId === 'string' && b.upiId.trim() && !/^[\w.\-]{2,}@[a-zA-Z]{2,}$/.test(b.upiId.trim())) return bad(res, 'That UPI ID does not look right (example: name@okhdfc)');
   if (typeof b.gstin === 'string' && b.gstin.trim() && !/^[0-9A-Z]{15}$/.test(b.gstin.trim().toUpperCase())) return bad(res, 'GSTIN must be 15 characters');
   if (typeof b.fssai === 'string' && b.fssai.trim() && !/^[0-9]{14}$/.test(b.fssai.trim())) return bad(res, 'FSSAI licence number must be 14 digits');
-  for (const k of ['name', 'tagline', 'city', 'cuisine', 'upiId', 'googleReviewUrl', 'address', 'openingHours', 'fssai', 'about']) {
+  for (const k of ['tagline', 'city', 'cuisine', 'upiId', 'googleReviewUrl', 'address', 'openingHours', 'fssai', 'about']) {
     if (typeof b[k] === 'string') r[k] = b[k].trim().slice(0, k === 'about' || k === 'address' ? 400 : 140);
   }
   if (typeof b.gstin === 'string') r.gstin = b.gstin.trim().toUpperCase();
   if (b.social && typeof b.social === 'object') {
     const filled = Object.values(b.social).some((v) => String(v || '').trim());
-    if (filled && !f.socialLinks) return S.planBlocked(res, 'socialLinks', 'Instagram, WhatsApp & map buttons are on Growth and Elite');
+    if (filled && !f.socialLinks) return S.planBlocked(res, 'socialLinks');
     for (const k of ['instagram', 'facebook', 'whatsapp', 'website', 'maps']) if (typeof b.social[k] === 'string') r.social[k] = b.social[k].trim().slice(0, 200);
   }
   if (Array.isArray(b.tables)) {
     const list = [...new Set(b.tables.map((t) => String(t).trim()).filter(Boolean))];
     if (list.length > (f.maxTables || 0) && list.join('|') !== (r.tables || []).join('|')) {
-      return S.planBlocked(res, f.maxTables ? 'maxTables' : 'tableQr', f.maxTables ? `Your plan includes ${f.maxTables} tables. Upgrade to add more.` : 'Tables & table ordering start on the Growth plan');
+      return S.planBlocked(res, f.maxTables ? 'maxTables' : 'tableQr', f.maxTables ? `Your plan includes ${f.maxTables} tables. Upgrade to add more.` : 'Table QR codes start on the Growth plan');
     }
     r.tables = list;
-  }
-  if (typeof b.slug === 'string' && b.slug !== r.slug) {
-    if (!f.customSlug) return S.planBlocked(res, 'customSlug', 'Your own web address is an Elite feature');
-    const s = S.slugify(b.slug);
-    if (inMemoryData.restaurants.some((x) => x.slug === s && x.id !== r.id)) return bad(res, 'That address is already taken', 409);
-    r.slug = s;
   }
   rebuildIndexes();
   persistDb();
@@ -171,73 +148,57 @@ router.patch('/prefs', (req, res) => {
   res.json({ success: true, prefs: req.rest.prefs });
 });
 
-/* ---------- theme / full customisation ---------- */
+/* ---------- look: ready-made templates + QR design (no fiddly colour pickers) ---------- */
 router.patch('/theme', (req, res) => {
   const r = req.rest;
   const f = S.subscriptionState(r).features;
   const b = req.body || {};
   const t = { ...r.theme };
-  const hex = (v) => /^#[0-9a-fA-F]{6}$/.test(v);
   if (b.template !== undefined) {
-    if (!S.TEMPLATE_PALETTES[b.template]) return bad(res, 'Unknown template');
-    if (!f.templates.includes(b.template)) {
-      const need = ['starter', 'growth', 'elite'].find((p) => S.getPlans()[p].features.templates.includes(b.template)) || 'elite';
-      return res.status(403).json({ success: false, upgrade: true, feature: 'templates', requiredPlan: need, message: `The ${b.template} design is on the ${S.getPlans()[need].name} plan` });
-    }
+    const tpl = S.templateById(b.template);
+    if (!tpl) return bad(res, 'Unknown design');
+    if (!(f.templates || []).includes(b.template)) return S.planBlocked(res, 'templates', `The ${tpl.name} design is on the ${S.getPlans()[S.requiredPlanFor('templates', b.template)].name} plan`, b.template);
     t.template = b.template;
-    Object.assign(t, S.TEMPLATE_PALETTES[b.template] || {}); // full palette; custom-colour plans may override below
   }
-  const colorKeys = ['primary', 'accent', 'background', 'text'];
-  for (const k of colorKeys) {
-    if (b[k] !== undefined) {
-      if (!hex(b[k])) return bad(res, `Invalid colour for ${k}`);
-      if (!f.customColors && b[k] !== t[k]) return S.planBlocked(res, 'customColors', 'Your own brand colours are on Growth and Elite');
-      t[k] = b[k];
-    }
-  }
-  if (b.font !== undefined) {
-    if (!['sans', 'serif', 'rounded', 'mono', 'display'].includes(b.font)) return bad(res, 'Unknown font');
-    if (!f.customFonts && b.font !== t.font) return S.planBlocked(res, 'customFonts', 'Custom fonts are on Growth and Elite');
-    t.font = b.font;
-  }
-  if (b.layout !== undefined) { if (!['list', 'grid', 'cards'].includes(b.layout)) return bad(res, 'Unknown layout'); t.layout = b.layout; }
-  if (b.darkMode !== undefined) { if (!['auto', 'light', 'dark'].includes(b.darkMode)) return bad(res, 'Bad mode'); t.darkMode = b.darkMode; }
-  if (b.radius !== undefined) t.radius = Math.max(0, Math.min(32, Number(b.radius) || 0));
-  for (const k of ['showImages', 'showVegToggle', 'showSearch']) if (typeof b[k] === 'boolean') t[k] = b[k];
-  if (typeof b.coverUrl === 'string' && b.coverUrl && !f.coverImage) return S.planBlocked(res, 'coverImage', 'A cover photo on your menu is on Growth and Elite');
-  if (typeof b.announcement === 'string' && b.announcement.trim() && !f.announcement) return S.planBlocked(res, 'announcement', 'The offers banner is on Growth and Elite');
   if (b.qrTheme !== undefined) {
-    if (!S.ALL_QR_THEMES.includes(b.qrTheme)) return bad(res, 'Unknown QR design');
-    if (!(f.qrThemes || []).includes(b.qrTheme)) {
-      const need = ['starter', 'growth', 'elite'].find((p) => (S.getPlans()[p].features.qrThemes || []).includes(b.qrTheme)) || 'elite';
-      return res.status(403).json({ success: false, upgrade: true, feature: 'qrThemes', requiredPlan: need, message: `This QR design is on the ${S.getPlans()[need].name} plan` });
-    }
+    const q = S.qrThemeById(b.qrTheme);
+    if (!q) return bad(res, 'Unknown QR design');
+    if (!(f.qrThemes || []).includes(b.qrTheme)) return S.planBlocked(res, 'qrThemes', `The ${q.name} QR design is on the ${S.getPlans()[S.requiredPlanFor('qrThemes', b.qrTheme)].name} plan`, b.qrTheme);
     t.qrTheme = b.qrTheme;
   }
-  for (const k of ['welcome', 'logoUrl', 'coverUrl', 'currency', 'announcement']) if (typeof b[k] === 'string') t[k] = b[k].trim().slice(0, 300);
+  if (typeof b.coverUrl === 'string' && b.coverUrl && !f.coverImage) return S.planBlocked(res, 'coverImage');
+  if (typeof b.announcement === 'string' && b.announcement.trim() && !f.announcement) return S.planBlocked(res, 'announcement');
+  for (const k of ['showVegToggle', 'showSearch']) if (typeof b[k] === 'boolean') t[k] = b[k];
+  for (const k of ['welcome', 'logoUrl', 'coverUrl', 'announcement']) if (typeof b[k] === 'string') t[k] = b[k].trim().slice(0, 300);
   r.theme = t;
-  r.brandColorHex = t.primary;
   persistDb();
   RT.menuUpdated(r);
   res.json({ success: true, theme: t, links: S.publicLinks(r) });
 });
 
 /* ---------- menu: photo scan -> preview -> import ---------- */
+/** Instant clarity check before the (slow) OCR: blur, darkness, glare and size. */
+const { checkPhoto } = require('../services/photoQuality');
+router.post('/menu/check-photo', async (req, res) => {
+  const m = String((req.body || {}).image || '').match(/^(?:data:image\/[a-z+]+;base64,)?(.+)$/);
+  if (!m || m[1].length < 100) return bad(res, 'No photo received');
+  res.json({ success: true, quality: await checkPhoto(Buffer.from(m[1], 'base64')) });
+});
+
 router.post('/menu/scan', async (req, res) => {
   const r = req.rest;
-  const sub = S.subscriptionState(r);
-  resetAiMonth(r);
-  if (r.aiScans.count >= sub.features.aiScansPerMonth) return S.planBlocked(res, 'aiScansPerMonth', `You have used all ${sub.features.aiScansPerMonth} photo scans this month. Upgrade for more scans.`);
   const images = (req.body.images || []).slice(0, 6).map((i) => {
     const m = String(i.data || '').match(/^data:(image\/[a-z+]+);base64,(.+)$/);
     return m ? { mediaType: m[1].replace('jpg', 'jpeg'), data: m[2] } : { mediaType: i.mediaType || 'image/jpeg', data: String(i.data || '') };
   }).filter((i) => i.data.length > 100);
   if (!images.length) return bad(res, 'Add at least one menu photo');
+  for (const [i, img] of images.entries()) {
+    const q = await checkPhoto(Buffer.from(img.data, 'base64'));
+    if (!q.ok) return res.status(422).json({ success: false, quality: q, page: i + 1, message: `Photo ${images.length > 1 ? i + 1 + ' ' : ''}is not clear enough: ${q.reason}` });
+  }
   try {
     const menu = await scanMenu(images);
-    r.aiScans.count += 1;
-    persistDb();
-    res.json({ success: true, menu, aiScans: { used: r.aiScans.count, limit: sub.features.aiScansPerMonth } });
+    res.json({ success: true, menu });
   } catch (e) {
     bad(res, e.message, 422);
   }
@@ -246,7 +207,7 @@ router.post('/menu/scan', async (req, res) => {
 router.post('/menu/import', (req, res) => {
   const r = req.rest;
   const sub = S.subscriptionState(r);
-  const { categories = [], replace = false, restaurantName, tagline, template, primary, accent } = req.body || {};
+  const { categories = [], replace = false, tagline, template } = req.body || {};
   const incoming = [];
   const catNames = replace ? [] : [...r.categories];
   for (const c of categories) {
@@ -258,7 +219,7 @@ router.post('/menu/import', (req, res) => {
       incoming.push({
         id: id('d'), name: String(i.name).trim(), category: cname, price: Number(i.price) || 0,
         description: String(i.description || '').trim(), isVeg: i.isVeg !== false, spiceLevel: i.spiceLevel || 'none',
-        isAvailable: true, imageUrl: '', tags: i.tags || [],
+        isAvailable: true, imageUrl: '', images: [], tags: i.tags || [],
         variants: (i.variants || []).map((v) => ({ id: id('v'), name: v.name, price: Number(v.price) || 0 })),
         modifiers: [],
       });
@@ -266,11 +227,8 @@ router.post('/menu/import', (req, res) => {
   }
   r.items = replace ? incoming : [...r.items, ...incoming];
   r.categories = catNames.filter((n) => r.items.some((i) => i.category === n));
-  if (restaurantName && (replace || !r.tagline)) r.name = String(restaurantName).slice(0, 80);
   if (tagline && !r.tagline) r.tagline = String(tagline).slice(0, 140);
-  if (template && sub.features.templates.includes(template)) { r.theme.template = template; Object.assign(r.theme, S.TEMPLATE_PALETTES[template] || {}); r.brandColorHex = r.theme.primary; }
-  if (primary && /^#[0-9a-fA-F]{6}$/.test(primary) && sub.features.customColors) { r.theme.primary = primary; r.brandColorHex = primary; }
-  if (accent && /^#[0-9a-fA-F]{6}$/.test(accent) && sub.features.customColors) r.theme.accent = accent;
+  if (template && (sub.features.templates || []).includes(template)) r.theme.template = template;
   persistDb();
   RT.menuUpdated(r);
   res.json({ success: true, imported: incoming.length, restaurant: summary(r) });
@@ -285,14 +243,14 @@ function dishExtras(b, f, cur) {
   if (b.offerPrice !== undefined) {
     if (b.offerPrice === null || b.offerPrice === '' || Number(b.offerPrice) === 0) patch.offerPrice = null;
     else {
-      if (!f.offers) return { error: (res) => S.planBlocked(res, 'offers', 'Offer prices & deals are on Growth and Elite') };
+      if (!f.offers) return { error: (res) => S.planBlocked(res, 'offers', 'Offer prices & deals are on Growth and Ultra') };
       const op = Number(b.offerPrice);
       if (!(op > 0 && op < price)) return { error: (res) => bad(res, 'Offer price must be lower than the regular price') };
       patch.offerPrice = op;
     }
   }
   if (Array.isArray(b.addons)) {
-    if (b.addons.length && !f.addons) return { error: (res) => S.planBlocked(res, 'addons', 'Add-ons like extra cheese are on Growth and Elite') };
+    if (b.addons.length && !f.addons) return { error: (res) => S.planBlocked(res, 'addons', 'Add-ons like extra cheese are on Growth and Ultra') };
     const list = [];
     for (const a of b.addons.slice(0, 12)) {
       const n = String(a.name || '').trim();
@@ -312,6 +270,15 @@ function dishExtras(b, f, cur) {
   return { patch };
 }
 const BADGES = ['bestseller', 'chef', 'new', 'spicy'];
+/** Dish photos: 1 on Starter, up to 3 on Growth & Ultra (plan value `photosPerDish`). */
+function dishImages(b, f, res) {
+  let list = Array.isArray(b.images) ? b.images : typeof b.imageUrl === 'string' ? (b.imageUrl ? [b.imageUrl] : []) : null;
+  if (list === null) return { list: null };
+  list = list.map((u) => String(u || '').trim()).filter((u) => /^https?:\/\//.test(u)).slice(0, 6);
+  const max = Number(f.photosPerDish) || 0;
+  if (list.length > max) return { error: () => S.planBlocked(res, 'photosPerDish', max ? `Your plan allows ${max} photo${max === 1 ? '' : 's'} per dish. Upgrade for more.` : 'Dish photos are not on your plan', list.length) };
+  return { list };
+}
 router.post('/menu/items', (req, res) => {
   const r = req.rest;
   const f = S.subscriptionState(r).features;
@@ -319,15 +286,16 @@ router.post('/menu/items', (req, res) => {
   if (!b.name || !String(b.name).trim()) return bad(res, 'Dish name required');
   if (Number(b.price) < 0) return bad(res, 'Price cannot be negative');
   const badge = (b.tags || []).some((t) => BADGES.includes(t));
-  if (badge && !f.dishBadges) return S.planBlocked(res, 'dishBadges', 'Bestseller & Chef special tags are on Growth and Elite');
-  if (b.imageUrl && !f.dishImages) return S.planBlocked(res, 'dishImages', 'Dish photos are on Growth and Elite');
+  if (badge && !f.dishBadges) return S.planBlocked(res, 'dishBadges', 'Bestseller & chef special tags are on Growth and Ultra');
+  const ph = dishImages(b, f, res);
+  if (ph.error) return ph.error();
   const cat = String(b.category || 'Menu').trim();
   const item = {
     id: id('d'), name: String(b.name).trim(), category: cat, price: Number(b.price) || 0,
     description: String(b.description || ''), ingredients: String(b.ingredients || '').trim().slice(0, 500),
     allergens: Array.isArray(b.allergens) ? b.allergens.map(String).filter((a) => DIETS.includes(a)).slice(0, 8) : [],
     isVeg: b.isVeg !== false, spiceLevel: b.spiceLevel || 'none',
-    isAvailable: true, imageUrl: f.dishImages ? String(b.imageUrl || '') : '', tags: (b.tags || []).map(String).slice(0, 6),
+    isAvailable: true, images: ph.list || [], imageUrl: (ph.list || [])[0] || '', tags: (b.tags || []).map(String).slice(0, 6),
     variants: (b.variants || []).map((v) => ({ id: id('v'), name: v.name, price: Number(v.price) || 0 })), modifiers: [],
   };
   const extra = dishExtras(b, f, null);
@@ -351,7 +319,7 @@ router.patch('/menu/items/:itemId', (req, res) => {
   if (typeof b.isVeg === 'boolean') it.isVeg = b.isVeg;
   if (typeof b.isAvailable === 'boolean') it.isAvailable = b.isAvailable;
   if (Array.isArray(b.tags)) {
-    if (b.tags.some((t) => BADGES.includes(t)) && !f.dishBadges) return S.planBlocked(res, 'dishBadges', 'Bestseller & Chef special tags are on Growth and Elite');
+    if (b.tags.some((t) => BADGES.includes(t)) && !f.dishBadges) return S.planBlocked(res, 'dishBadges', 'Bestseller & chef special tags are on Growth and Ultra');
     it.tags = b.tags.map(String).slice(0, 6);
   }
   if (b.price !== undefined && Number(b.price) < 0) return bad(res, 'Price cannot be negative');
@@ -359,7 +327,9 @@ router.patch('/menu/items/:itemId', (req, res) => {
   if (extra.error) return extra.error(res);
   Object.assign(it, extra.patch);
   if (Array.isArray(b.variants)) it.variants = b.variants.map((v) => ({ id: v.id || id('v'), name: v.name, price: Number(v.price) || 0 }));
-  if (typeof b.imageUrl === 'string') { if (!f.dishImages && b.imageUrl) return S.planBlocked(res, 'dishImages', 'Dish photos are on Growth and Elite'); it.imageUrl = b.imageUrl; }
+  const ph = dishImages(b, f, res);
+  if (ph.error) return ph.error();
+  if (ph.list) { it.images = ph.list; it.imageUrl = ph.list[0] || ''; }
   if (!r.categories.includes(it.category)) r.categories.push(it.category);
   r.categories = r.categories.filter((n) => r.items.some((i) => i.category === n));
   persistDb();
@@ -429,7 +399,7 @@ router.put('/menu/categories', (req, res) => {
 router.get('/subscription', (req, res) => {
   const r = req.rest;
   const pays = inMemoryData.payments.filter((p) => p.restaurantId === r.id);
-  res.json({ success: true, subscription: summary(r).subscription, payments: pays, plans: Object.values(S.getPlans()), adminUpiId: inMemoryData.adminConfig.adminUpiId });
+  res.json({ success: true, subscription: summary(r).subscription, payments: pays, plans: Object.values(S.getPlans()) });
 });
 
 /** Switch plan while on trial (free) – keeps the remaining trial days. */
@@ -443,54 +413,26 @@ router.post('/subscription/switch-trial-plan', (req, res) => {
   res.json({ success: true, restaurant: summary(r) });
 });
 
-/** Start checkout: applies coupon, returns UPI intent. Trial-extension coupons apply instantly. */
-router.post('/subscription/checkout', (req, res) => {
+/**
+ * Paying happens on the website (no payment gateway, no in-app purchase): the app asks for a one-time
+ * checkout link, the website shows the bill, takes the UPI payment + reference, and the admin verifies it.
+ */
+router.post('/subscription/checkout-link', (req, res) => {
   const r = req.rest;
-  const { plan, couponCode } = req.body || {};
-  const price = S.priceWithCoupon(plan, couponCode);
-  if (!price.ok) return bad(res, price.error);
-  if (price.coupon && price.coupon.type === 'trial_days') {
-    const c = S.findCoupon(couponCode);
-    c.used += 1;
-    const base = Math.max(Date.now(), new Date(r.subscription.trialEndsAt || Date.now()).getTime());
-    r.subscription.status = 'trial';
-    r.subscription.trialEndsAt = new Date(base + price.extraTrialDays * S.DAY).toISOString();
-    r.subscription.plan = plan;
-    r.currentPlan = plan; r.plan = plan;
-    persistDb();
-    return res.json({ success: true, applied: 'trial_extended', message: `${price.extraTrialDays} bonus trial days added!`, restaurant: summary(r) });
-  }
-  const upi = inMemoryData.adminConfig.adminUpiId;
-  const uri = `upi://pay?pa=${upi}&pn=QRMenuPro&am=${price.final.toFixed(2)}&cu=INR&tn=${encodeURIComponent(`${r.shortId}-${plan}`)}`;
-  res.json({ success: true, plan, ...price, adminUpiId: upi, upiIntentUri: uri });
-});
-
-/** Owner submits UTR after paying. Stays *pending* until the admin verifies it. */
-router.post('/subscription/pay', (req, res) => {
-  const r = req.rest;
-  const { plan, couponCode, utrRef } = req.body || {};
-  if (!/^[A-Za-z0-9]{8,24}$/.test(String(utrRef || '').trim())) return bad(res, 'Enter the UPI reference / UTR number from your payment app');
-  const price = S.priceWithCoupon(plan, couponCode);
-  if (!price.ok) return bad(res, price.error);
-  if (inMemoryData.payments.some((p) => p.utrRef === String(utrRef).trim())) return bad(res, 'This reference was already submitted', 409);
-  if (price.coupon) { const c = S.findCoupon(couponCode); c.used += 1; }
-  const tx = {
-    id: `TXN-${Date.now().toString().slice(-6)}`, restaurantId: r.id, restaurantName: r.name, ownerName: r.ownerName,
-    phone: r.phone, planId: plan, amount: price.final, listPrice: price.original, coupon: price.coupon ? price.coupon.code : null,
-    method: 'UPI', utrRef: String(utrRef).trim(), payeeUpi: inMemoryData.adminConfig.adminUpiId, status: 'pending', date: new Date().toISOString(),
-  };
-  inMemoryData.payments.unshift(tx);
-  recordActivity('payment', 'Payment submitted', `${r.name} paid ₹${tx.amount} for ${plan}. Awaiting verification.`);
+  const plan = (req.body || {}).plan || r.subscription.plan;
+  if (!S.getPlans()[plan]) return bad(res, 'Unknown plan');
+  const crypto = require('crypto');
+  const co = { id: crypto.randomBytes(12).toString('hex'), restaurantId: r.id, plan, createdAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 48 * 3600 * 1000).toISOString() };
+  inMemoryData.checkouts = (inMemoryData.checkouts || []).filter((c) => new Date(c.expiresAt).getTime() > Date.now());
+  inMemoryData.checkouts.unshift(co);
   persistDb();
-  RT.toAdmin('payment:new', { payment: tx });
-  res.json({ success: true, message: 'Payment received! We will activate your plan after verification (usually within an hour).', transaction: tx });
+  res.json({ success: true, url: `${S.menuBaseUrl()}/pay/${co.id}`, expiresAt: co.expiresAt });
 });
 
-
-/* ---------- orders / kitchen (Growth & Elite) ---------- */
+/* ---------- orders / kitchen (Growth & Ultra) ---------- */
 const { calculateOrderBill } = require('../utils/calculator');
 function needOrdering(req, res, next) {
-  if (!S.subscriptionState(req.rest).features.ordering) return S.planBlocked(res, 'ordering', 'Table ordering & the live kitchen screen are on Growth and Elite');
+  if (!S.subscriptionState(req.rest).features.ordering) return S.planBlocked(res, 'ordering', 'Table ordering & the live kitchen screen are on Growth and Ultra');
   next();
 }
 const FLOW = { pending: ['cooking', 'cancelled'], cooking: ['ready', 'cancelled'], ready: ['served'], served: [], cancelled: [] };
@@ -551,16 +493,12 @@ router.get('/feedback', (req, res) => res.json({ success: true, feedbacks: inMem
 /* ---------- account (owner profile) ---------- */
 router.patch('/account', (req, res) => {
   const r = req.rest; const b = req.body || {};
-  if (typeof b.ownerName === 'string' && b.ownerName.trim()) r.ownerName = b.ownerName.trim().slice(0, 60);
+  if ((typeof b.ownerName === 'string' && b.ownerName.trim() !== r.ownerName) || (typeof b.phone === 'string' && b.phone.replace(/\s/g, '') !== String(r.phone).replace(/\s/g, ''))) {
+    return bad(res, 'Your name and mobile number are fixed after sign-up. Contact support if they need correcting.', 403);
+  }
   if (typeof b.email === 'string') {
     if (b.email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(b.email)) return bad(res, 'Enter a valid email');
     r.email = b.email.trim().toLowerCase();
-  }
-  if (typeof b.phone === 'string') {
-    const p = b.phone.replace(/\s/g, '');
-    if (!/^\+?[0-9]{10,15}$/.test(p)) return bad(res, 'Enter a valid mobile number');
-    if (inMemoryData.restaurants.some((x) => x.id !== r.id && x.owner && String(x.phone).replace(/\s/g, '') === p)) return bad(res, 'That number is already registered', 409);
-    r.phone = p;
   }
   persistDb();
   res.json({ success: true, restaurant: summary(r) });
@@ -585,8 +523,8 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 
 router.post('/upload', upload.single('image'), async (req, res) => {
   const kind = String(req.query.kind || 'dish');
   const f = S.subscriptionState(req.rest).features;
-  if (kind === 'dish' && !f.dishImages) return S.planBlocked(res, 'dishImages', 'Dish photos are on Growth and Elite');
-  if (kind === 'cover' && !f.coverImage) return S.planBlocked(res, 'coverImage', 'A cover photo is on Growth and Elite');
+  if (kind === 'dish' && !(f.photosPerDish > 0)) return S.planBlocked(res, 'photosPerDish');
+  if (kind === 'cover' && !f.coverImage) return S.planBlocked(res, 'coverImage');
   if (!req.file) return bad(res, 'No image received');
   try {
     const name = `${req.rest.shortId}_${Date.now().toString(36)}.webp`;
@@ -600,7 +538,7 @@ router.post('/upload', upload.single('image'), async (req, res) => {
 router.get('/analytics', (req, res) => {
   const r = req.rest;
   const f = S.subscriptionState(r).features;
-  if (!f.analytics) return S.planBlocked(res, 'analytics', 'Scan & dish analytics are on Growth and Elite');
+  if (!f.analytics) return S.planBlocked(res, 'analytics', 'Scan & dish analytics are on Growth and Ultra');
   const days = [];
   for (let i = 13; i >= 0; i--) {
     const d = new Date(Date.now() - i * S.DAY).toISOString().slice(0, 10);

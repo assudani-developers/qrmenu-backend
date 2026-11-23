@@ -53,16 +53,16 @@ async function ocrFile(file) {
 
 const VIBES = [
   ['cafe', /coffee|latte|cappuccino|espresso|shake|sandwich|pastry|brownie|waffle|croissant|cake/i],
-  ['street', /chaat|pav|puri|vada|samosa|momo|roll|dosa|bhaji|kulcha|paratha/i],
+  ['chaat', /chaat|pav|puri|vada|samosa|momo|roll|dosa|bhaji|kulcha|paratha/i],
   ['neon', /mocktail|cocktail|hookah|beer|whisky|vodka|shot|bar bites/i],
-  ['modern', /pizza|pasta|burger|nachos|wrap|fries|salad|bruschetta/i],
+  ['indigo', /pizza|pasta|burger|nachos|wrap|fries|salad|bruschetta/i],
 ];
 function inferVibe(cats) {
   const items = cats.flatMap((c) => c.items);
   const text = items.map((i) => i.name).join(' ') + ' ' + cats.map((c) => c.name).join(' ');
   const avg = items.reduce((n, i) => n + i.price, 0) / Math.max(1, items.length);
   if (avg > 650) return 'luxe';
-  let best = 'classic', hits = 0;
+  let best = 'haveli', hits = 0;
   for (const [v, re] of VIBES) { const n = (text.match(new RegExp(re.source, 'gi')) || []).length; if (n > hits && n >= 2) { best = v; hits = n; } }
   return best;
 }

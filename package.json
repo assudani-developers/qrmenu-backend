@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
-    "test": "node --test test/*.test.js"
+    "test": "DB_FILE=$(mktemp -d)/db.json node --test test/*.test.js"
   },
   "keywords": [],
   "author": "",
@@ -22,7 +22,8 @@
     "jsonwebtoken": "^9.0.3",
     "multer": "^2.5.0",
     "sharp": "^0.35.5",
-    "socket.io": "^4.8.4"
+    "socket.io": "^4.8.4",
+    "web-push": "^3.6.7"
   },
   "devDependencies": {
     "nodemon": "^3.1.14",

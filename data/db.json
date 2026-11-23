@@ -13,6 +13,118 @@
   },
   "restaurants": [
     {
+      "id": "rest-632843ee3f",
+      "name": "werewfr",
+      "ownerName": "Piyush assudani",
+      "phone": "12345678490",
+      "city": "fefefrfrf",
+      "cuisine": "North Indian",
+      "tagline": "",
+      "slug": "werewfr",
+      "shortId": "cd88bd",
+      "upiId": "",
+      "googleReviewUrl": "",
+      "isActive": true,
+      "mrr": 0,
+      "totalScans": 0,
+      "scanLog": [],
+      "joinedDate": "23 Nov 2026",
+      "createdAt": "2026-11-23T08:13:28.279Z",
+      "brandColorHex": "#D97706",
+      "tables": [],
+      "categories": [],
+      "items": [],
+      "subscription": {
+        "plan": "starter",
+        "status": "trial",
+        "trialStartedAt": "2026-11-23T08:13:28.279Z",
+        "trialEndsAt": "2026-11-30T08:13:28.279Z",
+        "paidUntil": null
+      },
+      "owner": {
+        "salt": "b0276feaa2af5c611b0e92e21d8162fc",
+        "hash": "6cdc8ca400ba8adec0baccac7d82f10d19258b8f52643182677cde5d2db96db7"
+      },
+      "theme": {
+        "template": "classic",
+        "primary": "#D97706",
+        "accent": "#1F0F14",
+        "background": "#FFFBF5",
+        "text": "#1F2937",
+        "font": "sans",
+        "radius": 18,
+        "layout": "list",
+        "showImages": true,
+        "darkMode": "auto",
+        "logoUrl": "",
+        "coverUrl": "",
+        "welcome": "",
+        "announcement": "",
+        "currency": "₹",
+        "showVegToggle": true,
+        "showSearch": true,
+        "qrTheme": "classic"
+      },
+      "aiScans": {
+        "month": "2026-11",
+        "count": 0
+      },
+      "notifications": [],
+      "orderSeq": 0,
+      "email": "",
+      "social": {
+        "instagram": "",
+        "facebook": "",
+        "whatsapp": "",
+        "website": "",
+        "maps": ""
+      },
+      "address": "",
+      "openingHours": "",
+      "fssai": "",
+      "gstin": "",
+      "about": "",
+      "prefs": {
+        "orderSound": true,
+        "receiptAnimation": true,
+        "autoAccept": false
+      },
+      "store": {
+        "open": true,
+        "prepMinutes": 20,
+        "takeaway": true,
+        "wifiName": "",
+        "wifiPassword": ""
+      },
+      "categorySchedule": {},
+      "serviceCalls": [],
+      "reservations": [],
+      "inventory": [],
+      "inventoryLogs": [],
+      "suppliers": [],
+      "voice": {
+        "enabled": true,
+        "language": "hi",
+        "speed": 1,
+        "speakDishNames": true,
+        "volume": 1,
+        "kitchenSpeaker": true
+      },
+      "crm": {
+        "loyaltyRate": 10,
+        "minRedeemPoints": 50,
+        "vipThresholds": {
+          "silver": 2000,
+          "gold": 5000,
+          "platinum": 10000
+        }
+      },
+      "staff": [],
+      "branches": [],
+      "currentPlan": "starter",
+      "plan": "starter"
+    },
+    {
       "id": "rest-4e242893e7",
       "name": "Saffron Courtyard",
       "ownerName": "Demo Owner",
@@ -223,11 +335,11 @@
         "accent": "#1F0F14",
         "background": "#FFFBF5",
         "text": "#1F2937",
-        "font": "sans",
+        "font": "serif",
         "radius": 18,
         "layout": "list",
         "showImages": true,
-        "darkMode": "auto",
+        "darkMode": "light",
         "logoUrl": "",
         "coverUrl": "",
         "welcome": "",
@@ -776,6 +888,14 @@
   "feedbacks": [],
   "payments": [],
   "activities": [
+    {
+      "id": "ACT-8342",
+      "type": "restaurant",
+      "title": "New signup",
+      "description": "werewfr joined on the starter trial.",
+      "timeAgo": "Just now",
+      "timestamp": "2026-11-23T08:13:28.342Z"
+    },
     {
       "id": "ACT-9407",
       "type": "restaurant",

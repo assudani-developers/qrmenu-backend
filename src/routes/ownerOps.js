@@ -24,7 +24,7 @@ router.patch('/store', (req, res) => {
     r.store.prepMinutes = n;
   }
   if (typeof b.takeaway === 'boolean') {
-    if (b.takeaway && !feat(req).takeaway) return S.planBlocked(res, 'takeaway', 'Takeaway / parcel orders are on Growth and Elite');
+    if (b.takeaway) return bad(res, 'Takeaway orders are not available yet');
     r.store.takeaway = b.takeaway;
   }
   for (const k of ['wifiName', 'wifiPassword']) if (typeof b[k] === 'string') r.store[k] = b[k].trim().slice(0, 64);
@@ -69,7 +69,7 @@ router.post('/service-calls/clear', (req, res) => {
 
 /* ---------- table bookings ---------- */
 router.get('/reservations', (req, res) => {
-  if (!feat(req).reservations) return S.planBlocked(res, 'reservations', 'Table bookings from your menu are an Elite feature');
+  if (!feat(req).reservations) return S.planBlocked(res, 'reservations', 'Table bookings from your menu are on the Ultra plan');
   res.json({ success: true, reservations: req.rest.reservations.slice(0, 300) });
 });
 router.patch('/reservations/:id', (req, res) => {
@@ -87,7 +87,7 @@ router.patch('/reservations/:id', (req, res) => {
 
 /* ---------- timed menu sections ---------- */
 router.put('/menu/schedule', (req, res) => {
-  if (!feat(req).menuScheduling) return S.planBlocked(res, 'menuScheduling', 'Timed sections (breakfast, lunch, late night) are an Elite feature');
+  if (!feat(req).menuScheduling) return S.planBlocked(res, 'menuScheduling', 'Timed sections (breakfast, lunch, late night) are on the Ultra plan');
   const r = req.rest;
   const sched = (req.body || {}).schedule || {};
   const next = {};
@@ -123,7 +123,7 @@ function customers(req) {
     .sort((a, b) => (b.lastAt > a.lastAt ? 1 : -1));
 }
 router.get('/customers', (req, res) => {
-  if (!feat(req).customers) return S.planBlocked(res, 'customers', 'Your customer list is on Growth and Elite');
+  if (!feat(req).customers) return S.planBlocked(res, 'customers', 'Your customer list is on Growth and Ultra');
   const list = customers(req);
   res.json({ success: true, customers: list, total: list.length, repeat: list.filter((c) => c.visits > 1).length });
 });
@@ -139,7 +139,7 @@ router.get('/customers.csv', (req, res) => {
 const istDay = (iso) => new Date(new Date(iso).getTime() + 330 * 60000).toISOString().slice(0, 10);
 const istHour = (iso) => new Date(new Date(iso).getTime() + 330 * 60000).getUTCHours();
 router.get('/reports', (req, res) => {
-  if (!feat(req).analytics) return S.planBlocked(res, 'analytics', 'Sales reports are on Growth and Elite');
+  if (!feat(req).analytics) return S.planBlocked(res, 'analytics', 'Sales reports are on Growth and Ultra');
   const days = Math.max(1, Math.min(90, parseInt(req.query.days, 10) || 7));
   const since = Date.now() - days * S.DAY;
   const all = mine(req).filter((o) => new Date(o.createdAt).getTime() >= since);

@@ -142,7 +142,7 @@ test('6. Concurrency Table Lock: 100 concurrent bursts on the same table are str
 test('7. O(1) In-Memory Hash Indexing: Instantaneous multi-tenant restaurant and QR lookups', () => {
   const { findRestaurantById, findRestaurantByShortId, findRestaurantBySlug } = require('../src/db');
   const { createRestaurant } = require('../src/services/saas');
-  const rest = createRestaurant({ name: 'Index Test Cafe', phone: '9000000000' });
+  const rest = createRestaurant({ name: 'Index Test Cafe', ownerName: 'I', phone: '9000000000' });
 
   assert.equal(findRestaurantById(rest.id).name, rest.name);
   assert.equal(findRestaurantByShortId(rest.shortId).slug, rest.slug);

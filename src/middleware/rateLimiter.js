@@ -62,7 +62,7 @@ const ipBlockerMiddleware = (req, res, next) => {
 
 const globalLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
-  max: 120, // max 120 requests per minute per IP
+  max: Number(process.env.RATE_LIMIT_MAX) || 120, // requests per minute per IP (tests raise it)
   standardHeaders: true, // Return rate limit info in `RateLimit-*` headers
   legacyHeaders: false, // Disable the `X-RateLimit-*` headers
   skip: (req) => req.path === '/api/health' || req.path === '/health',

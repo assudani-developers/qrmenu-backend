@@ -10,7 +10,7 @@ const RT = require('../services/realtime');
 
 const router = express.Router();
 const bad = (res, msg, code = 400) => res.status(code).json({ success: false, message: msg });
-const resolve = (slug) => findRestaurantBySlug(slug) || findRestaurantByShortId(slug) || null;
+const resolve = (slug) => findRestaurantBySlug(slug) || findRestaurantByShortId(slug) || findRestaurantByShortId(String(slug).toUpperCase()) || null;
 
 router.get('/menu/:slug', (req, res) => {
   const r = resolve(req.params.slug);
@@ -28,12 +28,14 @@ router.get('/menu/:slug', (req, res) => {
 
   res.setHeader('Cache-Control', 'no-cache');
   const f0 = sub.features;
+  const tpl = S.templateById(r.theme.template) || S.templates()[0];
   const theme = { ...r.theme, coverUrl: f0.coverImage ? r.theme.coverUrl : '', announcement: f0.announcement ? r.theme.announcement : '' };
+  const brand = { name: inMemoryData.adminConfig.settings.brandName || 'QR Menu Pro', url: S.menuBaseUrl() };
   const base = {
     id: r.id, name: r.name, tagline: r.tagline, slug: r.slug, shortId: r.shortId, city: r.city, phone: r.phone, theme, live, status: sub.status,
-    cuisine: r.cuisine, address: r.address, openingHours: r.openingHours, about: r.about, fssai: r.fssai,
+    cuisine: r.cuisine, address: r.address, openingHours: r.openingHours, about: r.about, fssai: r.fssai, template: tpl, brand,
     social: f0.socialLinks ? r.social : {},
-    store: { open: r.store.open !== false, prepMinutes: r.store.prepMinutes || 0, wifiName: r.store.wifiName || '', wifiPassword: r.store.wifiPassword || '', takeaway: !!(f0.takeaway && r.store.takeaway !== false) },
+    store: { open: r.store.open !== false, prepMinutes: r.store.prepMinutes || 0, wifiName: r.store.wifiName || '', wifiPassword: r.store.wifiPassword || '', takeaway: false },
   };
   if (!live) return res.json({ success: true, restaurant: base, categories: [], items: [], features: {} });
 
@@ -45,7 +47,8 @@ router.get('/menu/:slug', (req, res) => {
     sections: r.categories.map((c) => ({ name: c, open: S.categoryOpen(r, c), window: f.menuScheduling ? r.categorySchedule[c] || null : null })),
     items: r.items.map((i) => ({
       ...i,
-      imageUrl: f.dishImages ? i.imageUrl : '',
+      images: (i.images || (i.imageUrl ? [i.imageUrl] : [])).slice(0, f.photosPerDish || 0),
+      imageUrl: (f.photosPerDish || 0) > 0 ? (i.images || [])[0] || i.imageUrl || '' : '',
       tags: f.dishBadges ? i.tags || [] : (i.tags || []).filter((t) => !['bestseller', 'chef', 'new', 'spicy'].includes(t)),
       offerPrice: f.offers && i.offerPrice > 0 && i.offerPrice < i.price ? i.offerPrice : null,
       addons: f.addons ? i.addons || [] : [],
@@ -191,6 +194,90 @@ router.post('/reservations', orderLimiter, (req, res) => {
   persistDb();
   RT.toRestaurant(r.id, 'reservation:new', { reservation: b });
   res.status(201).json({ success: true, reservation: { id: b.id, status: b.status } });
+});
+
+/* =================== website checkout (no gateway: UPI + reference, admin verifies) =================== */
+const checkout = (id) => (inMemoryData.checkouts || []).find((c) => c.id === id && new Date(c.expiresAt).getTime() > Date.now());
+const maskPhone = (p) => String(p || '').replace(/\s/g, '').replace(/^(.*)(\d{4})$/, (m, a, b) => a.replace(/\d/g, '•') + b);
+function payView(co) {
+  const r = inMemoryData.restaurants.find((x) => x.id === co.restaurantId);
+  if (!r) return null;
+  const sub = S.subscriptionState(r);
+  const c = inMemoryData.adminConfig;
+  const pay = inMemoryData.payments.find((p) => p.checkoutId === co.id) || null;
+  return {
+    id: co.id, plan: co.plan, expiresAt: co.expiresAt,
+    restaurant: { name: r.name, ownerName: r.ownerName, phone: maskPhone(r.phone), shortId: r.shortId, city: r.city },
+    subscription: { status: sub.status, plan: sub.plan, planName: sub.planName, daysLeft: sub.daysLeft, endsAt: sub.endsAt, trialEndsAt: r.subscription.trialEndsAt },
+    plans: S.planOrder().map((id) => { const p = S.getPlans()[id]; return { id, name: p.name, price: p.price, tagline: p.tagline, popular: !!p.popular, badge: p.badge || '' }; }),
+    payee: { upiId: c.adminUpiId, name: c.payeeName || c.settings.brandName || 'QR Menu Pro' },
+    brandName: c.settings.brandName || 'QR Menu Pro', trialDays: c.settings.trialDays,
+    payment: pay && { id: pay.id, status: pay.status, amount: pay.amount, listPrice: pay.listPrice, coupon: pay.coupon, discount: pay.discount || 0, planId: pay.planId, utrRef: pay.utrRef, date: pay.date, verifiedAt: pay.verifiedAt || null, paidUntil: pay.expiryExtendedTo || null },
+  };
+}
+router.get('/pay/:id', (req, res) => {
+  const co = checkout(req.params.id);
+  if (!co) return bad(res, 'This payment link has expired. Open the app and tap Renew again.', 404);
+  const v = payView(co);
+  if (!v) return bad(res, 'Restaurant not found', 404);
+  res.setHeader('Cache-Control', 'no-store');
+  res.json({ success: true, ...v });
+});
+router.post('/pay/:id/quote', orderLimiter, (req, res) => {
+  const co = checkout(req.params.id);
+  if (!co) return bad(res, 'This payment link has expired', 404);
+  const { plan, coupon } = req.body || {};
+  const q = S.priceWithCoupon(plan || co.plan, coupon);
+  if (!q.ok) return bad(res, q.error);
+  res.json({ success: true, ...q });
+});
+/** Trial-extension coupons apply instantly — no payment needed. */
+router.post('/pay/:id/trial-coupon', orderLimiter, (req, res) => {
+  const co = checkout(req.params.id);
+  if (!co) return bad(res, 'This payment link has expired', 404);
+  const r = inMemoryData.restaurants.find((x) => x.id === co.restaurantId);
+  const { plan, coupon } = req.body || {};
+  const q = S.priceWithCoupon(plan || co.plan, coupon);
+  if (!q.ok) return bad(res, q.error);
+  if (!q.coupon || q.coupon.type !== 'trial_days') return bad(res, 'This coupon is a discount — apply it to your payment instead');
+  if (S.subscriptionState(r).status === 'active') return bad(res, 'Bonus trial days apply only before your first payment');
+  S.findCoupon(coupon).used += 1;
+  const base = Math.max(Date.now(), new Date(r.subscription.trialEndsAt || Date.now()).getTime());
+  Object.assign(r.subscription, { status: 'trial', plan: plan || co.plan, trialEndsAt: new Date(base + q.extraTrialDays * S.DAY).toISOString() });
+  r.currentPlan = r.plan = r.subscription.plan;
+  S.notify(r, { type: 'payment', title: `${q.extraTrialDays} bonus trial days added`, body: `Coupon ${q.coupon.code} applied. Your trial now ends ${new Date(r.subscription.trialEndsAt).toLocaleDateString('en-IN')}.` });
+  persistDb();
+  RT.subscription(r, { event: 'trial_extended' });
+  res.json({ success: true, ...payView(co) });
+});
+router.post('/pay/:id/submit', orderLimiter, (req, res) => {
+  const co = checkout(req.params.id);
+  if (!co) return bad(res, 'This payment link has expired', 404);
+  const r = inMemoryData.restaurants.find((x) => x.id === co.restaurantId);
+  if (!r) return bad(res, 'Restaurant not found', 404);
+  const { plan, coupon, utr } = req.body || {};
+  const ref = String(utr || '').trim();
+  if (!/^[A-Za-z0-9]{10,24}$/.test(ref)) return bad(res, 'Enter the 12-digit UPI reference (UTR) shown in your payment app');
+  const q = S.priceWithCoupon(plan || co.plan, coupon);
+  if (!q.ok) return bad(res, q.error);
+  if (q.coupon && q.coupon.type === 'trial_days') return bad(res, 'Trial coupons do not need a payment — tap Apply instead');
+  if (inMemoryData.payments.some((p) => p.utrRef === ref)) return bad(res, 'This reference was already submitted', 409);
+  const existing = inMemoryData.payments.find((p) => p.checkoutId === co.id && p.status === 'pending');
+  if (existing) return bad(res, 'Your payment is already waiting for verification', 409);
+  if (q.coupon) S.findCoupon(coupon).used += 1;
+  const tx = {
+    id: `TXN-${Date.now().toString(36).toUpperCase()}`, checkoutId: co.id, restaurantId: r.id, restaurantName: r.name, ownerName: r.ownerName,
+    phone: r.phone, planId: plan || co.plan, amount: q.final, listPrice: q.original, discount: q.discount, coupon: q.coupon ? q.coupon.code : null,
+    method: 'UPI', utrRef: ref, payeeUpi: inMemoryData.adminConfig.adminUpiId, status: 'pending', source: 'website', date: new Date().toISOString(),
+  };
+  inMemoryData.payments.unshift(tx);
+  if (r.subscription.status !== 'active') r.subscription.pendingPaymentId = tx.id;
+  require('../db').recordActivity('payment', 'Payment submitted', `${r.name} paid ₹${tx.amount} for ${tx.planId}. Awaiting verification.`);
+  S.notify(r, { type: 'payment', title: 'Payment received · verifying', body: `₹${tx.amount} with reference ${ref}. Your plan activates once we confirm it.` });
+  persistDb();
+  RT.toAdmin('payment:new', { payment: tx });
+  require('../services/push').toAdmins({ title: `New payment ₹${tx.amount}`, body: `${r.name} · ${tx.planId} · UTR ${ref}`, url: '/dashboard/payments' });
+  res.json({ success: true, ...payView(co) });
 });
 
 /** Website "Request a demo" form. */

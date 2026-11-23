@@ -46,7 +46,9 @@ const row = (r) => {
     id: r.id, name: r.name, ownerName: r.ownerName, phone: r.phone, city: r.city, cuisine: r.cuisine, slug: r.slug, shortId: r.shortId,
     isActive: r.isActive, totalScans: r.totalScans || 0, itemCount: r.items.length, createdAt: r.createdAt, theme: r.theme,
     upiId: r.upiId, tagline: r.tagline, subscription: { plan: sub.plan, status: sub.status, endsAt: sub.endsAt, daysLeft: sub.daysLeft },
-    links: S.publicLinks(r), hasLogin: !!r.owner,
+    links: S.publicLinks(r), hasLogin: !!r.owner, email: r.email, address: r.address, totalOrders: inMemoryData.orders.filter((o) => o.restaurantId === r.id).length,
+    paidTotal: inMemoryData.payments.filter((p) => p.restaurantId === r.id && p.status === 'verified').reduce((n, p) => n + (Number(p.amount) || 0), 0),
+    trialEndsAt: r.subscription.trialEndsAt, paidUntil: r.subscription.paidUntil,
   };
 };
 const find = (id) => inMemoryData.restaurants.find((r) => r.id === id);
@@ -89,7 +91,15 @@ router.get('/restaurants', (req, res) => res.json({ success: true, restaurants: 
 router.get('/restaurants/:id', (req, res) => {
   const r = find(req.params.id);
   if (!r) return bad(res, 'Not found', 404);
-  res.json({ success: true, restaurant: { ...row(r), categories: r.categories, items: r.items, tables: r.tables, phone: r.phone, googleReviewUrl: r.googleReviewUrl, scanDaily: r.scanDaily || {}, payments: inMemoryData.payments.filter((p) => p.restaurantId === r.id) } });
+  const orders = inMemoryData.orders.filter((o) => o.restaurantId === r.id);
+  res.json({ success: true, restaurant: {
+    ...row(r), categories: r.categories, items: r.items, tables: r.tables, phone: r.phone, googleReviewUrl: r.googleReviewUrl, scanDaily: r.scanDaily || {},
+    gstin: r.gstin, fssai: r.fssai, openingHours: r.openingHours, about: r.about, social: r.social, store: r.store, taxPercent: r.taxPercent || 0,
+    payments: inMemoryData.payments.filter((p) => p.restaurantId === r.id),
+    orders: orders.slice(0, 50), orderRevenue: orders.filter((o) => o.status !== 'cancelled').reduce((n, o) => n + (o.totalAmount || 0), 0),
+    feedbacks: inMemoryData.feedbacks.filter((f) => f.restaurantId === r.id).slice(0, 30),
+    notifications: (r.notifications || []).slice(0, 20),
+  } });
 });
 
 router.post('/restaurants', (req, res) => {
@@ -116,7 +126,11 @@ router.patch('/restaurants/:id', (req, res) => {
     r.slug = s;
   }
   if (typeof b.isActive === 'boolean') r.isActive = b.isActive;
-  if (b.theme && typeof b.theme === 'object') { r.theme = { ...r.theme, ...b.theme }; r.brandColorHex = r.theme.primary; }
+  if (b.theme && typeof b.theme === 'object') {
+    if (b.theme.template && !S.templateById(b.theme.template)) return bad(res, 'Unknown template');
+    if (b.theme.qrTheme && !S.qrThemeById(b.theme.qrTheme)) return bad(res, 'Unknown QR design');
+    r.theme = { ...r.theme, ...b.theme };
+  }
   rebuildIndexes(); persistDb();
   RT.menuUpdated(r);
   RT.subscription(r, { event: 'admin_update' });
@@ -135,8 +149,8 @@ router.patch('/restaurants/:id/toggle-status', (req, res) => {
 router.delete('/restaurants/:id', (req, res) => {
   const i = inMemoryData.restaurants.findIndex((r) => r.id === req.params.id);
   if (i < 0) return bad(res, 'Not found', 404);
-  if (inMemoryData.restaurants.length <= 1) return bad(res, 'Cannot delete the last restaurant');
   const [gone] = inMemoryData.restaurants.splice(i, 1);
+  inMemoryData.orders = inMemoryData.orders.filter((o) => o.restaurantId !== gone.id);
   rebuildIndexes();
   recordActivity('restaurant', 'Restaurant deleted', `${gone.name} was removed by admin.`);
   persistDb();
@@ -182,22 +196,61 @@ router.post('/restaurants/:id/reset-password', (req, res) => {
 });
 
 /* ---------- plans ---------- */
-router.get('/plans', (req, res) => res.json({ success: true, plans: Object.values(S.getPlans()), templates: S.templateList().map((t) => t.id), qrThemes: S.ALL_QR_THEMES, featureCatalog: S.FEATURE_CATALOG }));
+const catalogue = () => ({ plans: Object.values(S.getPlans()), templates: S.templates(), qrThemes: S.qrThemes(), featureCatalog: S.catalog() });
+router.get('/plans', (req, res) => res.json({ success: true, ...catalogue() }));
 router.put('/plans/:id', (req, res) => {
-  if (!S.DEFAULT_PLANS[req.params.id]) return bad(res, 'Unknown plan', 404);
+  const p = inMemoryData.adminConfig.plans[req.params.id];
+  if (!p) return bad(res, 'Unknown plan', 404);
   const b = req.body || {};
-  const cur = inMemoryData.adminConfig.plans[req.params.id] || {};
-  const next = { ...cur };
-  if (typeof b.name === 'string') next.name = b.name;
-  if (typeof b.tagline === 'string') next.tagline = b.tagline;
-  if (typeof b.description === 'string') next.description = b.description;
-  if (typeof b.bestFor === 'string') next.bestFor = b.bestFor;
-  if (b.price !== undefined) next.price = Math.max(0, Number(b.price) || 0);
-  if (b.features && typeof b.features === 'object') next.features = { ...(cur.features || {}), ...b.features };
-  inMemoryData.adminConfig.plans[req.params.id] = next;
+  for (const k of ['name', 'tagline', 'description', 'bestFor', 'badge', 'color']) if (typeof b[k] === 'string') p[k] = b[k].trim().slice(0, 600);
+  if (b.price !== undefined) { const n = Number(b.price); if (!(n >= 0 && n <= 100000)) return bad(res, 'Price must be 0 to 1,00,000'); p.price = Math.round(n); }
+  if (typeof b.popular === 'boolean') {
+    if (b.popular) for (const o of Object.values(inMemoryData.adminConfig.plans)) o.popular = false;
+    p.popular = b.popular;
+  }
+  if (b.features && typeof b.features === 'object') {
+    const f = { ...p.features };
+    for (const [k, v] of Object.entries(b.features)) {
+      if (k === 'templates' || k === 'qrThemes') {
+        if (!Array.isArray(v)) return bad(res, `${k} must be a list`);
+        const known = new Set((k === 'templates' ? S.templates() : S.qrThemes()).map((t) => t.id));
+        if (v.some((x) => !known.has(x))) return bad(res, `Unknown id in ${k}`);
+        if (!v.length) return bad(res, `Every plan needs at least one ${k === 'templates' ? 'menu design' : 'QR design'}`);
+        f[k] = v;
+      } else if (typeof v === 'boolean') f[k] = v;
+      else if (typeof v === 'number' && v >= 0) f[k] = Math.round(v);
+    }
+    p.features = f;
+  }
   persistDb();
-  res.json({ success: true, plans: Object.values(S.getPlans()) });
+  recordActivity('plan', 'Plan updated', `${p.name} plan edited by admin.`);
+  res.json({ success: true, ...catalogue() });
 });
+/** Edit a menu design or QR design (name, blurb, colours, which tier introduces it). */
+router.put('/catalog/:kind/:id', (req, res) => {
+  const list = req.params.kind === 'templates' ? S.templates() : req.params.kind === 'qr' ? S.qrThemes() : null;
+  if (!list) return bad(res, 'Unknown catalogue', 404);
+  const t = list.find((x) => x.id === req.params.id);
+  if (!t) return bad(res, 'Not found', 404);
+  const b = req.body || {};
+  for (const [k, v] of Object.entries(b)) {
+    if (k === 'id' || !(k in t)) continue;
+    if (typeof t[k] === 'string' && typeof v === 'string') {
+      if (/^#[0-9a-fA-F]{6}$/.test(t[k]) && !/^#[0-9a-fA-F]{6}$/.test(v)) return bad(res, `${k} must be a colour like #AABBCC`);
+      t[k] = v.slice(0, 120);
+    } else if (typeof t[k] === 'number' && typeof v === 'number') t[k] = v;
+    else if (typeof t[k] === 'boolean' && typeof v === 'boolean') t[k] = v;
+  }
+  persistDb();
+  res.json({ success: true, ...catalogue() });
+});
+
+/* ---------- browser push for admins (Web Push / VAPID, no third-party account) ---------- */
+const push = require('../services/push');
+router.get('/push/key', (req, res) => res.json({ success: true, publicKey: push.publicKey() }));
+router.post('/push/subscribe', (req, res) => (push.subscribe((req.body || {}).subscription, 'admin') ? res.json({ success: true }) : bad(res, 'Invalid subscription')));
+router.post('/push/unsubscribe', (req, res) => { push.unsubscribe(String((req.body || {}).endpoint || '')); res.json({ success: true }); });
+router.post('/push/test', (req, res) => { push.toAdmins({ title: 'Notifications are on', body: 'You will get new payments and sign-ups here.', url: '/dashboard' }); res.json({ success: true }); });
 
 /* ---------- coupons ---------- */
 router.get('/coupons', (req, res) => res.json({ success: true, coupons: inMemoryData.coupons }));
@@ -242,12 +295,13 @@ router.post('/payments/:id/verify', (req, res) => {
   if (!p) return bad(res, 'Not found', 404);
   if (p.status === 'verified') return bad(res, 'Already verified', 409);
   p.status = 'verified';
+  p.verifiedAt = new Date().toISOString();
   const r = find(p.restaurantId);
   if (r) {
     const base = Math.max(Date.now(), new Date(r.subscription.paidUntil || 0).getTime());
     r.subscription.plan = p.planId; r.subscription.status = 'active';
     r.subscription.paidUntil = new Date(base + 30 * S.DAY).toISOString();
-    r.currentPlan = p.planId; r.plan = p.planId; r.isActive = true; r.mrr = p.amount;
+    r.currentPlan = p.planId; r.plan = p.planId; r.isActive = true; r.mrr = p.amount; delete r.subscription.pendingPaymentId;
     p.expiryExtendedTo = r.subscription.paidUntil;
   }
   recordActivity('payment', 'Payment verified', `₹${p.amount} from ${p.restaurantName} approved (+30 days).`);
@@ -286,13 +340,16 @@ router.delete('/leads/:id', (req, res) => {
 /* ---------- settings ---------- */
 router.get('/settings', (req, res) => {
   const c = inMemoryData.adminConfig;
-  res.json({ success: true, settings: { ...c.settings, adminUpiId: c.adminUpiId, adminPhone: c.adminPhone, supportEmail: c.supportEmail } });
+  res.json({ success: true, settings: { ...c.settings, adminUpiId: c.adminUpiId, adminPhone: c.adminPhone, supportEmail: c.supportEmail, payeeName: c.payeeName || '' }, websiteUrl: S.menuBaseUrl() });
 });
 router.put('/settings', (req, res) => {
   const c = inMemoryData.adminConfig; const b = req.body || {};
-  for (const k of ['adminUpiId', 'adminPhone', 'supportEmail']) if (typeof b[k] === 'string') c[k] = b[k];
+  if (typeof b.adminUpiId === 'string' && b.adminUpiId.trim() && !/^[\w.\-]{2,}@[a-zA-Z]{2,}$/.test(b.adminUpiId.trim())) return bad(res, 'That UPI ID does not look right (example: name@okhdfc)');
+  if (typeof b.supportEmail === 'string' && b.supportEmail.trim() && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(b.supportEmail.trim())) return bad(res, 'Enter a valid email');
+  for (const k of ['adminUpiId', 'adminPhone', 'supportEmail', 'payeeName']) if (typeof b[k] === 'string') c[k] = b[k].trim();
+  if (typeof b.brandName === 'string' && b.brandName.trim()) c.settings.brandName = b.brandName.trim().slice(0, 40);
   if (b.trialDays !== undefined) c.settings.trialDays = Math.max(0, Math.min(90, Number(b.trialDays) || 0));
-  for (const k of ['trialEnabled', 'signupsOpen', 'maintenanceMode']) if (typeof b[k] === 'boolean') c.settings[k] = b[k];
+  for (const k of ['trialEnabled', 'signupsOpen', 'maintenanceMode', 'appPaymentLinks']) if (typeof b[k] === 'boolean') c.settings[k] = b[k];
   persistDb();
   res.json({ success: true });
 });

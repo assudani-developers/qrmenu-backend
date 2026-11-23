@@ -36,7 +36,7 @@ function init(server) {
     if (role === 'superadmin') socket.join('admin');
 
     socket.on('menu:watch', (slug) => {
-      const r = findRestaurantBySlug(String(slug || '')) || findRestaurantByShortId(String(slug || ''));
+      const r = findRestaurantBySlug(String(slug || '')) || findRestaurantByShortId(String(slug || '')) || findRestaurantByShortId(String(slug || '').toUpperCase());
       if (r) socket.join(`menu:${r.id}`);
     });
     socket.on('order:watch', ({ id, key } = {}) => {
