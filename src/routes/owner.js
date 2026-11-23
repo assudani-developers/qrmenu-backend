@@ -8,6 +8,7 @@ const { inMemoryData, persistDb, rebuildIndexes, findRestaurantById, recordActiv
 const S = require('../services/saas');
 const { scanMenu } = require('../services/menuScanner');
 const RT = require('../services/realtime');
+const { authLimiter } = require('../middleware/rateLimiter');
 
 const router = express.Router();
 const bad = (res, msg, code = 400) => res.status(code).json({ success: false, message: msg });
@@ -67,17 +68,36 @@ router.post('/coupons/validate', (req, res) => {
 });
 
 /* ---------- auth ---------- */
+/** Pre-signup phone check: verify number is valid and available before merchant proceeds through wizard. */
+router.post('/check-phone', authLimiter, (req, res) => {
+  const cleanPhone = String(req.body?.phone || '').replace(/\D/g, '');
+  if (cleanPhone.length !== 10) {
+    return bad(res, 'Mobile number must be exactly 10 digits', 422);
+  }
+  if (!/^[6-9]\d{9}$/.test(cleanPhone)) {
+    return bad(res, 'Enter a valid 10-digit Indian mobile number starting with 6, 7, 8 or 9', 422);
+  }
+  const exists = inMemoryData.restaurants.some((r) => String(r.phone || '').replace(/\D/g, '') === cleanPhone);
+  if (exists) {
+    return res.status(409).json({ success: false, available: false, message: 'This mobile number is already registered. Please sign in.' });
+  }
+  return res.json({ success: true, available: true, message: 'Number is available' });
+});
+
 router.post('/signup', (req, res) => {
   const { name, ownerName, phone, password, city, plan, cuisine, couponCode } = req.body || {};
   const settings = inMemoryData.adminConfig.settings;
   if (!settings.signupsOpen) return bad(res, 'Signups are temporarily closed', 403);
   if (!name || String(name).trim().length < 2) return bad(res, 'Enter your restaurant name');
   if (!ownerName || String(ownerName).trim().length < 2) return bad(res, 'Enter your name');
-  if (!/^\+?[0-9 ]{10,15}$/.test(String(phone || ''))) return bad(res, 'Enter a valid mobile number');
+  const cleanPhone = String(phone || '').replace(/\D/g, '');
+  if (cleanPhone.length !== 10) return bad(res, 'Mobile number must be exactly 10 digits', 422);
+  if (!/^[6-9]\d{9}$/.test(cleanPhone)) return bad(res, 'Enter a valid 10-digit Indian mobile number', 422);
   if (!password || String(password).length < 6) return bad(res, 'Password must be at least 6 characters');
   if (!S.getPlans()[plan]) return bad(res, 'Choose a plan');
-  const cleanPhone = String(phone).replace(/\s/g, '');
-  if (inMemoryData.restaurants.some((r) => r.owner && String(r.phone).replace(/\s/g, '') === cleanPhone)) return bad(res, 'This number is already registered. Please sign in.', 409);
+  if (inMemoryData.restaurants.some((r) => String(r.phone || '').replace(/\D/g, '') === cleanPhone)) {
+    return bad(res, 'This mobile number is already registered. Please sign in.', 409);
+  }
   // Every account starts on the free trial; paying happens later on the website.
   let price = null;
   if (couponCode) {

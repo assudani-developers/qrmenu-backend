@@ -39,8 +39,16 @@ test('signup starts a trial and returns hosted links; fresh DB has no dummy data
   assert.ok(plans.plans.find((p) => p.id === 'ultra').popular);
   assert.ok(!JSON.stringify(plans).includes('customSlug') && !JSON.stringify(plans).includes('aiScansPerMonth'));
   assert.equal((await call('POST', '/owner/signup', { name: 'No Owner', phone: '9000000001', password: 'secret1', plan: 'growth' })).status, 400); // owner name required
+  assert.equal((await call('POST', '/owner/signup', { name: 'Bad Phone', ownerName: 'Tester', phone: '12345', password: 'secret1', plan: 'growth' })).status, 422); // non-10 digit
+  assert.equal((await call('POST', '/owner/check-phone', { phone: '12345' })).status, 422); // pre-check non-10 digit
+  const chkBefore = await call('POST', '/owner/check-phone', { phone: '9111111111' });
+  assert.equal(chkBefore.status, 200);
+  assert.equal(chkBefore.available, true);
   const r = await call('POST', '/owner/signup', { name: 'Test Cafe', ownerName: 'Tester', phone: '9111111111', password: 'secret1', plan: 'growth' });
   assert.equal(r.status, 201);
+  const chkAfter = await call('POST', '/owner/check-phone', { phone: '9111111111' });
+  assert.equal(chkAfter.status, 409);
+  assert.equal(chkAfter.available, false);
   assert.equal(r.restaurant.subscription.status, 'trial');
   assert.match(r.restaurant.links.qrUrl, /\/m\/[A-Z2-9]{7}$/);
   assert.equal(r.restaurant.links.qrUrl, r.restaurant.links.menuUrl);
