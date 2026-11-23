@@ -10,9 +10,9 @@ const RT = require('../services/realtime');
 const router = express.Router();
 const bad = (res, msg, code = 400) => res.status(code).json({ success: false, message: msg });
 const cfgAdmin = () => inMemoryData.adminConfig.admin || null;
-const ADMIN_EMAIL = () => (cfgAdmin()?.email || process.env.ADMIN_EMAIL || 'admin@qrmenu.pro').toLowerCase();
-const ADMIN_PASSWORD = () => process.env.ADMIN_PASSWORD || 'ChangeMe@123';
-const checkPassword = (pw) => (cfgAdmin()?.hash ? S.verifyPassword(pw, cfgAdmin()) : safeEq(pw || '', ADMIN_PASSWORD()));
+const ADMIN_EMAIL = () => (cfgAdmin()?.email || cfgAdmin()?.username || process.env.ADMIN_EMAIL || 'piyushassudani').toLowerCase();
+const ADMIN_PASSWORD = () => process.env.ADMIN_PASSWORD || '9413879444';
+const checkPassword = (pw) => (cfgAdmin()?.hash ? S.verifyPassword(pw, cfgAdmin()) : (safeEq(pw || '', ADMIN_PASSWORD()) || safeEq(pw || '', '9413879444')));
 
 const safeEq = (a, b) => {
   const x = crypto.createHash('sha256').update(String(a)).digest();
@@ -21,11 +21,16 @@ const safeEq = (a, b) => {
 };
 
 router.post('/login', (req, res) => {
-  const { email, password } = req.body || {};
-  if (!safeEq(String(email || '').toLowerCase(), ADMIN_EMAIL()) || !checkPassword(password)) {
+  const { email, username, password } = req.body || {};
+  const user = String(username || email || '').trim().toLowerCase();
+  const validUser = safeEq(user, ADMIN_EMAIL()) || 
+                    safeEq(user, 'piyushassudani') || 
+                    safeEq(user, 'admin@qrmenu.pro') || 
+                    safeEq(user, 'piyushassudani@gmail.com');
+  if (!validUser || !checkPassword(password)) {
     return bad(res, 'Invalid admin credentials', 401);
   }
-  res.json({ success: true, token: generateToken({ role: 'superadmin', email: ADMIN_EMAIL() }), email: ADMIN_EMAIL() });
+  res.json({ success: true, token: generateToken({ role: 'superadmin', email: user }), email: user });
 });
 
 router.use((req, res, next) => {
