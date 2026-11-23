@@ -10,6 +10,16 @@ const { spawn } = require('child_process');
 const PY = process.env.PYTHON_BIN || 'python3';
 const WORKER = path.join(__dirname, '../ocr/worker.py');
 const TIMEOUT_MS = 150000;
+// The OCR models use ~1 GB of RAM. Free the memory when nobody has scanned for a while (default 10 min);
+// the next scan starts the engine again in a few seconds. Set OCR_IDLE_MS=0 to keep it always loaded.
+const IDLE_MS = Number(process.env.OCR_IDLE_MS ?? 10 * 60 * 1000);
+let idleTimer = null;
+function touch() {
+  clearTimeout(idleTimer);
+  if (!IDLE_MS) return;
+  idleTimer = setTimeout(() => { if (proc && !pending.size) { try { proc.kill(); } catch (_) {} } }, IDLE_MS);
+  if (idleTimer.unref) idleTimer.unref();
+}
 
 let proc = null, ready = null, buf = '', seq = 0;
 const pending = new Map();
@@ -38,15 +48,18 @@ function start() {
   return ready;
 }
 
-/** Start loading models in the background (call at server boot). */
-function warmup() { if (process.env.OCR_PRELOAD === '0') return; start().then(() => console.log('[OCR] engine ready')).catch((e) => console.error('[OCR] warmup failed:', e.message)); }
+/** Load the models in the background. Called when an owner opens the scan screen, so they are ready by the
+ *  time the photos are taken. At boot only when OCR_PRELOAD=1 (keeps RAM free on small servers). */
+function warm() { touch(); start().catch((e) => console.error('[OCR] warmup failed:', e.message)); }
+function warmup() { if (process.env.OCR_PRELOAD !== '1') return; touch(); start().then(() => console.log('[OCR] engine ready')).catch((e) => console.error('[OCR] warmup failed:', e.message)); }
 
 async function ocrFile(file) {
+  touch();
   await start();
   const id = ++seq;
   return new Promise((resolve) => {
     const t = setTimeout(() => { pending.delete(id); resolve({ success: false, error: 'Reading took too long. Try a smaller or clearer photo.' }); }, TIMEOUT_MS);
-    pending.set(id, (r) => { clearTimeout(t); resolve(r); });
+    pending.set(id, (r) => { clearTimeout(t); touch(); resolve(r); });
     proc.stdin.write(JSON.stringify({ id, path: file }) + '\n');
   });
 }
@@ -68,11 +81,12 @@ function inferVibe(cats) {
 }
 
 /** images: [{mediaType, data(base64)}] -> normalised menu, pages merged by section name. */
-async function scanMenu(images) {
+async function scanMenu(images, onProgress = () => {}) {
   const merged = new Map();
   const warnings = [];
   let name = '', failed = 0, lastErr = '';
-  for (const img of images) {
+  for (const [n, img] of images.entries()) {
+    onProgress({ page: n + 1, pages: images.length, queued: pending.size });
     const ext = img.mediaType.includes('png') ? 'png' : img.mediaType.includes('webp') ? 'webp' : 'jpg';
     const tmp = path.join(os.tmpdir(), `menu_${Date.now()}_${Math.random().toString(36).slice(2, 7)}.${ext}`);
     fs.writeFileSync(tmp, Buffer.from(img.data, 'base64'));
@@ -104,4 +118,6 @@ async function scanMenu(images) {
 }
 
 process.on('exit', () => { try { proc && proc.kill(); } catch (_) {} });
-module.exports = { scanMenu, warmup };
+/** How many pages are waiting in front of a new scan (shared worker). */
+const queueLength = () => pending.size;
+module.exports = { scanMenu, warmup, warm, queueLength };

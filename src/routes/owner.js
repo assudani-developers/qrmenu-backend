@@ -6,7 +6,7 @@ const jwt = require('jsonwebtoken');
 const { JWT_SECRET, generateToken } = require('../middleware/auth');
 const { inMemoryData, persistDb, rebuildIndexes, findRestaurantById, recordActivity, archiveRecord, withTableLock } = require('../db');
 const S = require('../services/saas');
-const { scanMenu } = require('../services/menuScanner');
+const { scanMenu, queueLength, warm } = require('../services/menuScanner');
 const RT = require('../services/realtime');
 const { authLimiter } = require('../middleware/rateLimiter');
 
@@ -34,7 +34,7 @@ function summary(r) {
   const sub = S.subscriptionState(r);
   const plans = S.getPlans();
   return {
-    id: r.id, name: r.name, ownerName: r.ownerName, email: r.email, taxPercent: r.taxPercent || 0, phone: r.phone, city: r.city, cuisine: r.cuisine,
+    id: r.id, name: r.name, ownerName: r.ownerName, email: r.email, emailVerified: !!r.emailVerified, twoStep: !!r.twoStep, taxPercent: r.taxPercent || 0, phone: r.phone, city: r.city, cuisine: r.cuisine,
     tagline: r.tagline, address: r.address, openingHours: r.openingHours, fssai: r.fssai, gstin: r.gstin, about: r.about, social: r.social, prefs: r.prefs,
     slug: r.slug, shortId: r.shortId, upiId: r.upiId, googleReviewUrl: r.googleReviewUrl,
     tables: r.tables, categories: r.categories, items: r.items, theme: r.theme, isActive: r.isActive, store: r.store, categorySchedule: r.categorySchedule,
@@ -84,40 +84,75 @@ router.post('/check-phone', authLimiter, (req, res) => {
   return res.json({ success: true, available: true, message: 'Number is available' });
 });
 
-const emailOtps = new Map();
+/* ---------- email codes (verify at sign-up, forgot password, two-step sign-in) ---------- */
+const OTP = require('../services/otp');
+const findByLogin = (id) => {
+  const v = String(id || '').trim().toLowerCase();
+  const digits = v.replace(/\D/g, '');
+  return inMemoryData.restaurants.find((x) => x.owner && ((digits.length === 10 && String(x.phone).replace(/\D/g, '') === digits) || (v.includes('@') && x.email === v)));
+};
+const sent = (res, r, email, extra = {}) => {
+  if (r.wait) return bad(res, `Please wait ${r.wait} seconds before asking for a new code`, 429);
+  if (!r.ok) return bad(res, r.error || 'Could not send the code', 502);
+  res.json({ success: true, sentTo: OTP.mask(email), ...(r.devCode ? { devCode: r.devCode } : {}), ...extra });
+};
 
-/** Send 6-digit email verification code via Gmail SMTP (assudanigroup@gmail.com). */
+/** Sign-up step: send a code to the email the owner typed. */
 router.post('/send-email-otp', authLimiter, async (req, res) => {
   const { email, name } = req.body || {};
-  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email).trim())) {
-    return bad(res, 'Please provide a valid email address');
-  }
-  const cleanEmail = String(email).trim().toLowerCase();
-  const code = Math.floor(100000 + Math.random() * 900000).toString();
-  emailOtps.set(cleanEmail, { code, expiresAt: Date.now() + 10 * 60 * 1000 });
-
-  const mailer = require('../services/mailer');
-  const result = await mailer.sendOtpEmail({ to: cleanEmail, code, name: name || 'Restaurant Partner' });
-  return res.json({ success: true, message: 'Verification code sent to email', simulated: !!result.simulated });
+  if (!OTP.validEmail(email)) return bad(res, 'Enter a valid email address');
+  const e = OTP.cleanEmail(email);
+  if (inMemoryData.restaurants.some((x) => x.email === e)) return bad(res, 'This email is already used by another restaurant. Sign in instead.', 409);
+  sent(res, await OTP.send('signup', e, e, name), e);
 });
 
-/** Verify the 6-digit email code. */
+/** Sign-up step: check the code; returns a proof the sign-up call must carry. */
 router.post('/verify-email-otp', authLimiter, (req, res) => {
   const { email, code } = req.body || {};
-  const cleanEmail = String(email || '').trim().toLowerCase();
-  const record = emailOtps.get(cleanEmail);
-  if (!record || record.expiresAt < Date.now()) {
-    return bad(res, 'Verification code has expired or does not exist. Please request a new one.', 400);
-  }
-  if (record.code !== String(code || '').trim()) {
-    return bad(res, 'Invalid verification code', 400);
-  }
-  emailOtps.delete(cleanEmail);
-  return res.json({ success: true, verified: true, message: 'Email verified successfully' });
+  const e = OTP.cleanEmail(email);
+  const c = OTP.check('signup', e, code);
+  if (!c.ok) return bad(res, c.error, 400);
+  res.json({ success: true, verified: true, emailToken: OTP.emailProof(e) });
+});
+
+/** Forgot password: code goes to the email on the account (found by mobile number or email). */
+router.post('/forgot-password', authLimiter, async (req, res) => {
+  const r = findByLogin((req.body || {}).login);
+  if (!r) return bad(res, 'No account found with this mobile number or email', 404);
+  if (!r.email) return bad(res, 'This account has no email yet. Contact support to reset your password.', 409);
+  sent(res, await OTP.send('reset', r.id, r.email, r.ownerName), r.email);
+});
+router.post('/reset-password', authLimiter, (req, res) => {
+  const { login, code, password } = req.body || {};
+  const r = findByLogin(login);
+  if (!r) return bad(res, 'No account found with this mobile number or email', 404);
+  if (!password || String(password).length < 6) return bad(res, 'New password must be at least 6 characters');
+  const c = OTP.check('reset', r.id, code);
+  if (!c.ok) return bad(res, c.error, 400);
+  r.owner = S.hashPassword(password);
+  r.emailVerified = true; // the code reached this inbox
+  persistDb();
+  res.json({ success: true, token: generateToken({ role: 'owner', restaurantId: r.id }), restaurant: summary(r) });
+});
+
+/** Two-step sign-in, second step. */
+router.post('/login/verify', authLimiter, (req, res) => {
+  const rid = OTP.challengeRid((req.body || {}).challenge);
+  const r = rid && inMemoryData.restaurants.find((x) => x.id === rid);
+  if (!r) return bad(res, 'This sign-in expired. Enter your password again.', 401);
+  const c = OTP.check('login', r.id, (req.body || {}).code);
+  if (!c.ok) return bad(res, c.error, 400);
+  res.json({ success: true, token: generateToken({ role: 'owner', restaurantId: r.id }), restaurant: summary(r) });
+});
+router.post('/login/resend', authLimiter, async (req, res) => {
+  const rid = OTP.challengeRid((req.body || {}).challenge);
+  const r = rid && inMemoryData.restaurants.find((x) => x.id === rid);
+  if (!r) return bad(res, 'This sign-in expired. Enter your password again.', 401);
+  sent(res, await OTP.send('login', r.id, r.email, r.ownerName), r.email);
 });
 
 router.post('/signup', (req, res) => {
-  const { name, ownerName, phone, password, city, plan, cuisine, couponCode, email } = req.body || {};
+  const { name, ownerName, phone, password, city, plan, cuisine, couponCode, email, emailToken } = req.body || {};
   const settings = inMemoryData.adminConfig.settings;
   if (!settings.signupsOpen) return bad(res, 'Signups are temporarily closed', 403);
   if (!name || String(name).trim().length < 2) return bad(res, 'Enter your restaurant name');
@@ -126,7 +161,9 @@ router.post('/signup', (req, res) => {
   if (cleanPhone.length !== 10) return bad(res, 'Mobile number must be exactly 10 digits', 422);
   if (!/^[6-9]\d{9}$/.test(cleanPhone)) return bad(res, 'Enter a valid 10-digit Indian mobile number', 422);
   if (!password || String(password).length < 6) return bad(res, 'Password must be at least 6 characters');
-  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email).trim())) return bad(res, 'Enter a valid email address', 422);
+  if (!OTP.validEmail(email)) return bad(res, 'Enter a valid email address', 422);
+  if (!OTP.proofOk(emailToken, email)) return bad(res, 'Verify your email with the 6-digit code first', 422);
+  if (inMemoryData.restaurants.some((x) => x.email === OTP.cleanEmail(email))) return bad(res, 'This email is already used by another restaurant. Sign in instead.', 409);
   if (!S.getPlans()[plan]) return bad(res, 'Choose a plan');
   if (inMemoryData.restaurants.some((r) => String(r.phone || '').replace(/\D/g, '') === cleanPhone)) {
     return bad(res, 'This mobile number is already registered. Please sign in.', 409);
@@ -143,6 +180,7 @@ router.post('/signup', (req, res) => {
     S.findCoupon(couponCode).used += 1;
     r.subscription.trialEndsAt = new Date(new Date(r.subscription.trialEndsAt).getTime() + price.extraTrialDays * S.DAY).toISOString();
   }
+  r.emailVerified = true;
   recordActivity('restaurant', 'New signup', `${r.name} joined on the ${S.getPlans()[r.subscription.plan].name} trial.`);
   persistDb();
   RT.toAdmin('restaurant:new', { id: r.id, name: r.name });
@@ -155,6 +193,13 @@ router.post('/login', (req, res) => {
   const clean = String(phone || '').replace(/\s/g, '');
   const r = inMemoryData.restaurants.find((x) => x.owner && String(x.phone).replace(/\s/g, '') === clean);
   if (!r || !S.verifyPassword(password, r.owner)) return bad(res, 'Wrong mobile number or password', 401);
+  if (r.twoStep && r.email) {
+    return (async () => {
+      const m = await OTP.send('login', r.id, r.email, r.ownerName);
+      if (!m.ok && !m.wait) return bad(res, m.error || 'Could not send the sign-in code', 502);
+      res.json({ success: true, twoStep: true, challenge: OTP.challenge(r.id), sentTo: OTP.mask(r.email), ...(m.devCode ? { devCode: m.devCode } : {}) });
+    })();
+  }
   return res.json({ success: true, token: generateToken({ role: 'owner', restaurantId: r.id }), restaurant: summary(r) });
 });
 
@@ -229,14 +274,30 @@ router.patch('/theme', (req, res) => {
   res.json({ success: true, theme: t, links: S.publicLinks(r) });
 });
 
+/* ---------- alerts on this phone/browser (Web Push, works on iPhone home-screen app; no third-party account) ---------- */
+const push = require('../services/push');
+router.get('/push/key', (req, res) => res.json({ success: true, publicKey: push.publicKey() }));
+router.post('/push/subscribe', (req, res) => (push.subscribe((req.body || {}).subscription, `rest:${req.rest.id}`) ? res.json({ success: true }) : bad(res, 'Invalid subscription')));
+router.post('/push/unsubscribe', (req, res) => { push.unsubscribe(String((req.body || {}).endpoint || '')); res.json({ success: true }); });
+router.post('/push/test', (req, res) => { push.toRestaurant(req.rest.id, { title: 'Order alerts are on', body: 'New orders and table calls will show here.', url: './' }); res.json({ success: true }); });
+
 /* ---------- menu: photo scan -> preview -> import ---------- */
 /** Instant clarity check before the (slow) OCR: blur, darkness, glare and size. */
 const { checkPhoto } = require('../services/photoQuality');
+/** The scan screen opened: start the OCR engine now so the scan itself is quick. */
+router.post('/menu/warmup', (req, res) => { warm(); res.json({ success: true }); });
+
 router.post('/menu/check-photo', async (req, res) => {
   const m = String((req.body || {}).image || '').match(/^(?:data:image\/[a-z+]+;base64,)?(.+)$/);
   if (!m || m[1].length < 100) return bad(res, 'No photo received');
   res.json({ success: true, quality: await checkPhoto(Buffer.from(m[1], 'base64')) });
 });
+
+/** Scans run as a background job so a slow page never times out the request; the app polls for progress. */
+const scanJobs = new Map();
+const JOB_TTL = 15 * 60 * 1000;
+function sweepJobs() { const now = Date.now(); for (const [k, j] of scanJobs) if (now - j.at > JOB_TTL) scanJobs.delete(k); }
+function jobView(j) { return { success: true, id: j.id, status: j.status, page: j.page, pages: j.pages, queued: j.queued, startedAt: j.at, menu: j.menu, message: j.message, quality: j.quality }; }
 
 router.post('/menu/scan', async (req, res) => {
   const r = req.rest;
@@ -249,12 +310,28 @@ router.post('/menu/scan', async (req, res) => {
     const q = await checkPhoto(Buffer.from(img.data, 'base64'));
     if (!q.ok) return res.status(422).json({ success: false, quality: q, page: i + 1, message: `Photo ${images.length > 1 ? i + 1 + ' ' : ''}is not clear enough: ${q.reason}` });
   }
+  if (req.body.async) {
+    sweepJobs();
+    for (const j of scanJobs.values()) if (j.rid === r.id && j.status === 'running') return res.json(jobView(j)); // one scan at a time per restaurant
+    const job = { id: id('scan'), rid: r.id, status: 'running', page: 0, pages: images.length, queued: queueLength(), at: Date.now() };
+    scanJobs.set(job.id, job);
+    scanMenu(images, (p) => Object.assign(job, p))
+      .then((menu) => Object.assign(job, { status: 'done', menu, page: job.pages }))
+      .catch((e) => Object.assign(job, { status: 'failed', message: e.message }));
+    return res.json(jobView(job));
+  }
   try {
     const menu = await scanMenu(images);
     res.json({ success: true, menu });
   } catch (e) {
     bad(res, e.message, 422);
   }
+});
+
+router.get('/menu/scan/:job', (req, res) => {
+  const j = scanJobs.get(req.params.job);
+  if (!j || j.rid !== req.rest.id) return bad(res, 'This scan has expired. Please scan again.', 404);
+  res.json(jobView(j));
 });
 
 router.post('/menu/import', (req, res) => {
@@ -554,10 +631,34 @@ router.patch('/account', (req, res) => {
   if ((typeof b.ownerName === 'string' && b.ownerName.trim() !== r.ownerName) || (typeof b.phone === 'string' && b.phone.replace(/\s/g, '') !== String(r.phone).replace(/\s/g, ''))) {
     return bad(res, 'Your name and mobile number are fixed after sign-up. Contact support if they need correcting.', 403);
   }
-  if (typeof b.email === 'string') {
-    if (b.email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(b.email)) return bad(res, 'Enter a valid email');
-    r.email = b.email.trim().toLowerCase();
-  }
+  if (typeof b.email === 'string' && OTP.cleanEmail(b.email) !== r.email) return bad(res, 'Confirm the new email with a code first', 403);
+  persistDb();
+  res.json({ success: true, restaurant: summary(r) });
+});
+/** Change / add email: code goes to the NEW address, then /account/email/verify saves it. */
+router.post('/account/email', authLimiter, async (req, res) => {
+  const e = OTP.cleanEmail((req.body || {}).email);
+  if (!OTP.validEmail(e)) return bad(res, 'Enter a valid email address');
+  if (inMemoryData.restaurants.some((x) => x.email === e && x.id !== req.rest.id)) return bad(res, 'This email is used by another restaurant', 409);
+  sent(res, await OTP.send('email', `${req.rest.id}:${e}`, e, req.rest.ownerName), e);
+});
+router.post('/account/email/verify', authLimiter, (req, res) => {
+  const r = req.rest; const e = OTP.cleanEmail((req.body || {}).email);
+  const c = OTP.check('email', `${r.id}:${e}`, (req.body || {}).code);
+  if (!c.ok) return bad(res, c.error, 400);
+  r.email = e; r.emailVerified = true;
+  persistDb();
+  res.json({ success: true, restaurant: summary(r) });
+});
+/** Two-step sign-in on/off. Turning it on needs a code from the account email (proves the inbox works). */
+router.post('/account/two-step', authLimiter, async (req, res) => {
+  const r = req.rest; const { on, code } = req.body || {};
+  if (!on) { r.twoStep = false; persistDb(); return res.json({ success: true, restaurant: summary(r) }); }
+  if (!r.email) return bad(res, 'Add an email first', 409);
+  if (!code) return sent(res, await OTP.send('twostep', r.id, r.email, r.ownerName), r.email, { needCode: true });
+  const c = OTP.check('twostep', r.id, code);
+  if (!c.ok) return bad(res, c.error, 400);
+  r.twoStep = true; r.emailVerified = true;
   persistDb();
   res.json({ success: true, restaurant: summary(r) });
 });

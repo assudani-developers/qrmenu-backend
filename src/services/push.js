@@ -1,5 +1,5 @@
 /**
- * Browser push for the admin panel using the open Web Push standard (VAPID).
+ * Browser push for the admin panel and the owner web app (iPhone home-screen app included) using the open Web Push standard (VAPID).
  * No Firebase or other third-party account: the keys are generated once and stored in our own database,
  * and the browser's built-in push channel delivers the message.
  */
@@ -37,9 +37,14 @@ function unsubscribe(endpoint) {
 }
 
 /** Fire-and-forget; dead subscriptions (410/404) are removed. */
-function toAdmins(payload) {
+function toAdmins(payload) { send((s) => s.who === 'admin', payload); }
+/** Every browser/phone where this restaurant's owner switched alerts on. */
+function toRestaurant(rid, payload) { send((s) => s.who === `rest:${rid}`, payload); }
+
+function send(match, payload) {
+  const subs = (inMemoryData.pushSubs || []).filter(match);
+  if (!subs.length) return;
   try { setup(); } catch (_) { return; }
-  const subs = (inMemoryData.pushSubs || []).filter((s) => s.who === 'admin');
   for (const s of subs) {
     webpush.sendNotification(s, JSON.stringify(payload), { TTL: 3600 }).catch((e) => {
       if (e && (e.statusCode === 404 || e.statusCode === 410)) unsubscribe(s.endpoint);
@@ -47,4 +52,4 @@ function toAdmins(payload) {
   }
 }
 
-module.exports = { publicKey, subscribe, unsubscribe, toAdmins };
+module.exports = { publicKey, subscribe, unsubscribe, toAdmins, toRestaurant };

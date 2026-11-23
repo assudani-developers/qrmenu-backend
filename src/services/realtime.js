@@ -46,6 +46,8 @@ function init(server) {
   });
 }
 
+const push = require('./push');
+const inr = (n) => '₹' + Math.round(Number(n) || 0).toLocaleString('en-IN');
 const emit = (room, ev, data) => { if (io) io.to(room).emit(ev, data); };
 
 /** Public, customer-safe view of an order. */
@@ -53,11 +55,16 @@ const publicOrder = (o) => ({ id: o.id, token: o.token, status: o.status, tableN
 
 module.exports = {
   init,
-  toRestaurant: (rid, ev, data) => emit(`rest:${rid}`, ev, data),
+  toRestaurant: (rid, ev, data) => {
+    emit(`rest:${rid}`, ev, data);
+    if (ev === 'service:new' && data && data.call) push.toRestaurant(rid, { title: `${data.call.table || 'A table'} · ${data.call.label || 'needs you'}`, body: 'Tap to open', url: './', tag: 'call' });
+  },
   toAdmin: (ev, data) => emit('admin', ev, data),
   orderNew(r, o) {
     emit(`rest:${r.id}`, 'order:new', { order: o });
     emit('admin', 'order:new', { order: o, restaurantName: r.name });
+    const qty = (o.items || []).reduce((n, i) => n + (Number(i.qty) || 0), 0);
+    push.toRestaurant(r.id, { title: `New order #${o.token} · ${o.tableNumber || ''}`.trim(), body: `${qty} items · ${inr(o.totalAmount)}`, url: './', tag: `order-${o.id}` });
   },
   orderUpdate(o) {
     emit(`rest:${o.restaurantId}`, 'order:update', { order: o });
@@ -66,6 +73,7 @@ module.exports = {
   },
   notification(r, n) {
     emit(`rest:${r.id}`, 'notification', { notification: n, unread: (r.notifications || []).filter((x) => !x.read).length });
+    if (n && n.type !== 'order') push.toRestaurant(r.id, { title: n.title || 'Update', body: n.body || '', url: './', tag: n.id });
   },
   menuUpdated(r) {
     emit(`menu:${r.id}`, 'menu:updated', { slug: r.slug });

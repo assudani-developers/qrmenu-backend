@@ -112,7 +112,7 @@ const uploadLimiter = rateLimit({
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 15, // max 15 attempts per 15 minutes
+  max: Number(process.env.AUTH_RATE_MAX) || 30, // sign-in / code attempts per 15 minutes per IP (tests raise it)
   standardHeaders: true,
   legacyHeaders: false,
   handler: (req, res) => {

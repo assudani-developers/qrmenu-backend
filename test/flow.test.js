@@ -15,8 +15,17 @@ const call = async (method, url, body, token, headers = {}) => {
   return { status: r.status, ...(await r.json().catch(() => ({}))) };
 };
 
+/** Sign-up with the email-code step done (codes come back as devCode because mail is off in tests). */
+let mails = 0;
+const signup = async (body) => {
+  const email = body.email || `owner${++mails}.${Date.now()}@test.io`;
+  const o = await call('POST', '/owner/send-email-otp', { email });
+  const v = o.devCode ? await call('POST', '/owner/verify-email-otp', { email, code: o.devCode }) : {};
+  return call('POST', '/owner/signup', { ...body, email, emailToken: v.emailToken });
+};
+
 test.before(async () => {
-  server = spawn('node', [path.join(__dirname, '../src/server.js')], { env: { ...process.env, PORT: String(PORT), DB_FILE: path.join(dir, 'db.json'), OCR_PRELOAD: '0', RATE_LIMIT_MAX: '5000', ADMIN_EMAIL: 'a@t.io', ADMIN_PASSWORD: 'pw-test-1' }, stdio: ['ignore', 'inherit', 'inherit'] });
+  server = spawn('node', [path.join(__dirname, '../src/server.js')], { env: { ...process.env, PORT: String(PORT), DB_FILE: path.join(dir, 'db.json'), OCR_PRELOAD: '0', SMTP_PASS: '', AUTH_RATE_MAX: '5000', RATE_LIMIT_MAX: '5000', ADMIN_EMAIL: 'a@t.io', ADMIN_PASSWORD: 'pw-test-1' }, stdio: ['ignore', 'inherit', 'inherit'] });
   for (let i = 0; i < 40; i++) { try { if ((await fetch(BASE + '/health')).ok) return; } catch (_) {} await new Promise((r) => setTimeout(r, 250)); }
   throw new Error('server did not start');
 });
@@ -38,13 +47,13 @@ test('signup starts a trial and returns hosted links; fresh DB has no dummy data
   assert.deepEqual(plans.plans.map((p) => p.features.photosPerDish), [1, 3, 3]);
   assert.ok(plans.plans.find((p) => p.id === 'ultra').popular);
   assert.ok(!JSON.stringify(plans).includes('customSlug') && !JSON.stringify(plans).includes('aiScansPerMonth'));
-  assert.equal((await call('POST', '/owner/signup', { name: 'No Owner', phone: '9000000001', password: 'secret1', plan: 'growth' })).status, 400); // owner name required
-  assert.equal((await call('POST', '/owner/signup', { name: 'Bad Phone', ownerName: 'Tester', phone: '12345', password: 'secret1', plan: 'growth' })).status, 422); // non-10 digit
+  assert.equal((await signup({ name: 'No Owner', phone: '9000000001', password: 'secret1', plan: 'growth' })).status, 400); // owner name required
+  assert.equal((await signup({ name: 'Bad Phone', ownerName: 'Tester', phone: '12345', password: 'secret1', plan: 'growth' })).status, 422); // non-10 digit
   assert.equal((await call('POST', '/owner/check-phone', { phone: '12345' })).status, 422); // pre-check non-10 digit
   const chkBefore = await call('POST', '/owner/check-phone', { phone: '9111111111' });
   assert.equal(chkBefore.status, 200);
   assert.equal(chkBefore.available, true);
-  const r = await call('POST', '/owner/signup', { name: 'Test Cafe', ownerName: 'Tester', phone: '9111111111', password: 'secret1', plan: 'growth' });
+  const r = await signup({ name: 'Test Cafe', ownerName: 'Tester', phone: '9111111111', password: 'secret1', plan: 'growth' });
   assert.equal(r.status, 201);
   const chkAfter = await call('POST', '/owner/check-phone', { phone: '9111111111' });
   assert.equal(chkAfter.status, 409);
@@ -53,9 +62,9 @@ test('signup starts a trial and returns hosted links; fresh DB has no dummy data
   assert.match(r.restaurant.links.qrUrl, /\/m\/[A-Z2-9]{7}$/);
   assert.equal(r.restaurant.links.qrUrl, r.restaurant.links.menuUrl);
   growth = { token: r.token, rest: r.restaurant };
-  const s = await call('POST', '/owner/signup', { name: 'Tiny Tea', ownerName: 'Tia', phone: '9222222222', password: 'secret1', plan: 'starter' });
+  const s = await signup({ name: 'Tiny Tea', ownerName: 'Tia', phone: '9222222222', password: 'secret1', plan: 'starter' });
   starter = { token: s.token, rest: s.restaurant };
-  const dup = await call('POST', '/owner/signup', { name: 'Dup', ownerName: 'Dev', phone: '9111111111', password: 'secret1', plan: 'growth' });
+  const dup = await signup({ name: 'Dup', ownerName: 'Dev', phone: '9111111111', password: 'secret1', plan: 'growth' });
   assert.equal(dup.status, 409);
   assert.equal((await call('POST', '/owner/login', { phone: '9111111111', password: 'bad' })).status, 401);
 });
@@ -64,7 +73,7 @@ test('website checkout: bill, coupon, UTR, admin verifies, trial coupons extend 
   const { token: at } = await call('POST', '/admin/login', { email: 'a@t.io', password: 'pw-test-1' });
   assert.equal((await call('PUT', '/admin/settings', { adminUpiId: 'not a upi' }, at)).status, 400);
   await call('PUT', '/admin/settings', { adminUpiId: 'pay@bank' }, at);
-  const r = await call('POST', '/owner/signup', { name: 'Pay Cafe', ownerName: 'Pia', phone: '9444444444', password: 'secret1', plan: 'growth' });
+  const r = await signup({ name: 'Pay Cafe', ownerName: 'Pia', phone: '9444444444', password: 'secret1', plan: 'growth' });
   assert.equal(r.restaurant.subscription.status, 'trial'); // signup never takes money
   const link = await call('POST', '/owner/subscription/checkout-link', { plan: 'ultra' }, r.token);
   assert.match(link.url, /\/pay\/[a-f0-9]{24}$/);
@@ -94,8 +103,8 @@ test('website checkout: bill, coupon, UTR, admin verifies, trial coupons extend 
   assert.equal(me.restaurant.subscription.status, 'active');
   assert.equal(me.restaurant.subscription.plan, 'ultra');
   // signup: percent coupon refused, trial coupon adds days
-  assert.equal((await call('POST', '/owner/signup', { name: 'T1', ownerName: 'Asha', phone: '9666666666', password: 'secret1', plan: 'starter', couponCode: 'OFF20' })).status, 400);
-  const t = await call('POST', '/owner/signup', { name: 'T2', ownerName: 'Bala', phone: '9777777777', password: 'secret1', plan: 'starter', couponCode: 'BONUS5' });
+  assert.equal((await signup({ name: 'T1', ownerName: 'Asha', phone: '9666666666', password: 'secret1', plan: 'starter', couponCode: 'OFF20' })).status, 400);
+  const t = await signup({ name: 'T2', ownerName: 'Bala', phone: '9777777777', password: 'secret1', plan: 'starter', couponCode: 'BONUS5' });
   assert.equal(t.restaurant.subscription.daysLeft, 12);
   // trial coupon on the website checkout
   const l2 = (await call('POST', '/owner/subscription/checkout-link', {}, t.token)).url.split('/').pop();
@@ -242,7 +251,7 @@ test('operations: add-ons, offer price, dine-in table orders, store closed, serv
   // bookings & timed sections are Ultra
   assert.equal((await call('POST', '/reservations', { slug, name: 'A', phone: '9876543210', date: '2099-01-01', time: '20:00', guests: 2 })).status, 403);
   assert.equal((await call('PUT', '/owner/menu/schedule', { schedule: { Pizza: { from: '07:00', to: '11:00' } } }, g)).upgrade, true);
-  const e = await call('POST', '/owner/signup', { name: 'Ultra House', ownerName: 'Uma', phone: '9555555555', password: 'secret1', plan: 'ultra' });
+  const e = await signup({ name: 'Ultra House', ownerName: 'Uma', phone: '9555555555', password: 'secret1', plan: 'ultra' });
   const bk = await call('POST', '/reservations', { slug: e.restaurant.slug, name: 'Ravi', phone: '9876543210', date: '2099-01-01', time: '20:00', guests: 4 });
   assert.equal(bk.status, 201);
   assert.equal((await call('PATCH', `/owner/reservations/${bk.reservation.id}`, { status: 'confirmed' }, e.token)).reservation.status, 'confirmed');
@@ -274,7 +283,29 @@ test('profile: name, owner and phone are fixed; email + password change; tenants
   assert.equal((await call('PATCH', '/owner/account', { phone: '9000000099' }, growth.token)).status, 403);
   assert.equal((await call('PATCH', '/owner/profile', { name: 'Renamed' }, growth.token)).status, 403);
   assert.ok((await call('PATCH', '/owner/profile', { name: 'Test Cafe', tagline: 'Fresh daily' }, growth.token)).success); // unchanged name is fine
-  assert.ok((await call('PATCH', '/owner/account', { ownerName: 'Tester', email: 'x@y.com' }, growth.token)).success);
+  // a new email needs a code sent to that address
+  assert.equal((await call('PATCH', '/owner/account', { ownerName: 'Tester', email: 'x@y.com' }, growth.token)).status, 403);
+  const ec = await call('POST', '/owner/account/email', { email: 'x@y.com' }, growth.token);
+  assert.equal((await call('POST', '/owner/account/email/verify', { email: 'x@y.com', code: '000000' }, growth.token)).status, 400);
+  const ev = await call('POST', '/owner/account/email/verify', { email: 'x@y.com', code: ec.devCode }, growth.token);
+  assert.equal(ev.restaurant.email, 'x@y.com');
+  assert.equal(ev.restaurant.emailVerified, true);
+  // sign-up refuses an email that was not verified
+  assert.equal((await call('POST', '/owner/signup', { name: 'NoProof', ownerName: 'Nia', phone: '9333333331', password: 'secret1', plan: 'growth', email: 'np@test.io' })).status, 422);
+  // forgot password by mobile number: code to the account email, then a new password signs in
+  const fp = await call('POST', '/owner/forgot-password', { login: '9111111111' });
+  assert.match(fp.sentTo, /@y\.com$/);
+  assert.equal((await call('POST', '/owner/reset-password', { login: '9111111111', code: fp.devCode, password: 'secret1' })).success, true);
+  assert.equal((await call('POST', '/owner/reset-password', { login: '9111111111', code: fp.devCode, password: 'secret1' })).status, 400); // code is single-use
+  // two-step sign-in
+  const ts = await call('POST', '/owner/account/two-step', { on: true }, growth.token);
+  assert.ok(ts.needCode);
+  assert.equal((await call('POST', '/owner/account/two-step', { on: true, code: ts.devCode }, growth.token)).restaurant.twoStep, true);
+  const l1 = await call('POST', '/owner/login', { phone: '9111111111', password: 'secret1' });
+  assert.ok(l1.twoStep && l1.challenge && !l1.token);
+  const l2 = await call('POST', '/owner/login/verify', { challenge: l1.challenge, code: l1.devCode });
+  assert.ok(l2.token);
+  assert.equal((await call('POST', '/owner/account/two-step', { on: false }, l2.token)).restaurant.twoStep, false);
   assert.equal((await call('POST', '/owner/account/password', { current: 'nope', next: 'abcdef' }, growth.token)).status, 403);
   assert.ok((await call('POST', '/owner/account/password', { current: 'secret1', next: 'abcdef' }, growth.token)).success);
   assert.ok((await call('POST', '/owner/login', { phone: '9111111111', password: 'abcdef' })).success);
@@ -325,7 +356,7 @@ test('offline OCR reads a menu photo (python worker, no cloud API)', { timeout: 
   const img = path.join(__dirname, '../test_data/synthetic/a_single_dots.png');
   if (!fs.existsSync(img)) return t.skip('synthetic menu missing (run test_data/gen_menus.py)');
   server.kill();
-  server = spawn('node', [path.join(__dirname, '../src/server.js')], { env: { ...process.env, PORT, DB_FILE: path.join(dir, 'db.json'), RATE_LIMIT_MAX: '5000', ADMIN_EMAIL: 'a@t.io', ADMIN_PASSWORD: 'pw-test-1' }, stdio: 'ignore' });
+  server = spawn('node', [path.join(__dirname, '../src/server.js')], { env: { ...process.env, PORT, DB_FILE: path.join(dir, 'db.json'), SMTP_PASS: '', AUTH_RATE_MAX: '5000', RATE_LIMIT_MAX: '5000', ADMIN_EMAIL: 'a@t.io', ADMIN_PASSWORD: 'pw-test-1' }, stdio: 'ignore' });
   for (let i = 0; i < 40; i++) { try { if ((await fetch(BASE + '/health')).ok) break; } catch (_) {} await new Promise((r) => setTimeout(r, 250)); }
   const login = await call('POST', '/owner/login', { phone: '9111111111', password: 'abcdef' });
   const data = 'data:image/png;base64,' + fs.readFileSync(img).toString('base64');

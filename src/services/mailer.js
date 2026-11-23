@@ -141,7 +141,15 @@ function wrapEmail(content, title = 'QR Menu Pro', preheader = '') {
 }
 
 /* ---------------- 1. Verification OTP Email ---------------- */
-async function sendOtpEmail({ to, code, name = 'Restaurant Partner' }) {
+const OTP_TEXT = {
+  signup: ['Verify your email', 'Use this code to confirm your email and finish creating your QR Menu Pro account:'],
+  reset: ['Reset your password', 'Someone (hopefully you) asked to reset the password of your QR Menu Pro account. Use this code to set a new one:'],
+  login: ['Your sign-in code', 'Your password was entered correctly. Use this code to finish signing in to QR Menu Pro:'],
+  email: ['Confirm your new email', 'Use this code to confirm this as the new email for your QR Menu Pro account:'],
+  twostep: ['Turn on two-step sign-in', 'Use this code to switch on two-step sign-in for your QR Menu Pro account:'],
+};
+async function sendOtpEmail({ to, code, name = 'Restaurant Partner', purpose = 'signup' }) {
+  const [heading, lead] = OTP_TEXT[purpose] || OTP_TEXT.signup;
   const content = `
     <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="margin-bottom: 24px; text-align: center;">
       <tr>
@@ -149,7 +157,7 @@ async function sendOtpEmail({ to, code, name = 'Restaurant Partner' }) {
           <div style="display: inline-block; width: 56px; height: 56px; line-height: 56px; border-radius: 50%; background: rgba(200, 169, 110, 0.15); border: 1px solid rgba(200, 169, 110, 0.4); font-size: 26px; text-align: center;">
             🔐
           </div>
-          <h2 style="font-size: 24px; font-weight: 800; margin: 16px 0 6px 0; color: #ffffff;">Email Verification Code</h2>
+          <h2 style="font-size: 24px; font-weight: 800; margin: 16px 0 6px 0; color: #ffffff;">${heading}</h2>
           <div style="font-size: 13px; color: #a59fb8;">Assudani Developers · Identity Security</div>
         </td>
       </tr>
@@ -157,7 +165,7 @@ async function sendOtpEmail({ to, code, name = 'Restaurant Partner' }) {
 
     <p style="color: #c7c2d6; font-size: 15px; line-height: 1.6; margin: 0 0 12px 0;">Hello <strong>${name}</strong>,</p>
     <p style="color: #c7c2d6; font-size: 14px; line-height: 1.6; margin: 0 0 20px 0;">
-      Aapka QR Menu Pro account verify karne ke liye niche diya gaya 6-digit OTP use karein:
+      ${lead}
     </p>
     
     <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="background: rgba(200, 169, 110, 0.08); border: 2px dashed #C8A96E; border-radius: 16px; margin: 24px 0;">
@@ -169,13 +177,13 @@ async function sendOtpEmail({ to, code, name = 'Restaurant Partner' }) {
       </tr>
     </table>
 
-    <p style="color: #8c85a0; font-size: 12px; line-height: 1.5; margin: 0;">Agar aapne yeh request nahi ki, toh is email ko ignore karein ya humein report karein: <a href="mailto:assudanigroup@gmail.com" style="color: #C8A96E; text-decoration: none;">assudanigroup@gmail.com</a>.</p>
+    <p style="color: #8c85a0; font-size: 12px; line-height: 1.5; margin: 0;">Did not ask for this? Ignore this email, your account stays safe. Questions: <a href="mailto:assudanigroup@gmail.com" style="color: #C8A96E; text-decoration: none;">assudanigroup@gmail.com</a>.</p>
   `;
 
   return sendMail({
     to,
-    subject: `🔐 Your QR Menu Pro Verification Code: ${code}`,
-    html: wrapEmail(content, 'Email Verification', `Your verification code is ${code}. Valid for 10 minutes.`),
+    subject: `${code} is your QR Menu Pro code`,
+    html: wrapEmail(content, heading, `${code} · valid for 10 minutes. Never share it.`),
   });
 }
 
