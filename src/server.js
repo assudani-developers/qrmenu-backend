@@ -17,6 +17,9 @@ const ImageVault = require('./services/imageVault');
 const app = express();
 const server = http.createServer(app);
 
+// Trust proxy headers from Nginx / Cloudflare for accurate client IP & rate limiting
+app.set('trust proxy', 1);
+
 // Real-Time WebSockets Engine
 const io = new Server(server, {
   cors: {
