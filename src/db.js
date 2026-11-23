@@ -15,6 +15,8 @@ const initialData = {
   activities: [],
   leads: [],
   coupons: [],
+  grievances: [],
+  subAdmins: [],
   _archive: { restaurants: [], items: [], orders: [], coupons: [], leads: [], feedbacks: [] },
 };
 
@@ -282,6 +284,7 @@ function loadDatabaseWithRecovery() {
   }
 
   if (!Array.isArray(inMemoryData.subAdmins)) inMemoryData.subAdmins = [];
+  if (!Array.isArray(inMemoryData.grievances)) inMemoryData.grievances = [];
   rebuildIndexes();
 }
 

@@ -8,6 +8,7 @@ const { inMemoryData, persistDb, rebuildIndexes, findRestaurantById, recordActiv
 const S = require('../services/saas');
 const { scanMenu, queueLength, warm } = require('../services/menuScanner');
 const RT = require('../services/realtime');
+const Mailer = require('../services/mailer');
 const { authLimiter } = require('../middleware/rateLimiter');
 
 const router = express.Router();
@@ -860,6 +861,79 @@ router.get('/analytics', (req, res) => {
   const bestSellers = Object.entries(sold).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([name, qty]) => ({ name, qty }));
   const revenue = orders.reduce((n, o) => n + (o.totalAmount || 0), 0);
   res.json({ success: true, totalScans: r.totalScans || 0, days, top, bestSellers, orderCount: orders.length, revenue, avgOrder: orders.length ? Math.round(revenue / orders.length) : 0 });
+});
+
+/* ---------- disputes & grievances ---------- */
+router.get('/grievances', (req, res) => {
+  const list = (inMemoryData.grievances || [])
+    .filter((g) => g.restaurantId === req.rest.id)
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  res.json({ success: true, grievances: list });
+});
+
+router.post('/grievances', async (req, res) => {
+  const b = req.body || {};
+  const category = String(b.category || 'other').trim();
+  const description = String(b.description || '').trim();
+  if (!description || description.length < 10) {
+    return bad(res, 'Please provide at least 10 characters describing your dispute or grievance');
+  }
+
+  const ticketId = `GRV-${Date.now().toString(36).toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`;
+  const g = {
+    id: ticketId,
+    restaurantId: req.rest.id,
+    restaurantName: req.rest.name,
+    ownerName: req.rest.ownerName,
+    ownerPhone: req.rest.phone,
+    ownerEmail: req.rest.email || b.contactEmail || '',
+    category,
+    subject: String(b.subject || category).slice(0, 120),
+    description,
+    utrRef: String(b.utrRef || '').trim(),
+    contactPhone: String(b.contactPhone || req.rest.phone || '').trim(),
+    contactEmail: String(b.contactEmail || req.rest.email || '').trim(),
+    status: 'acknowledged',
+    createdAt: new Date().toISOString(),
+    acknowledgedAt: new Date().toISOString(),
+  };
+
+  if (!Array.isArray(inMemoryData.grievances)) inMemoryData.grievances = [];
+  inMemoryData.grievances.push(g);
+  recordActivity('grievance', `Dispute / Grievance filed by ${req.rest.name}`, `${category}: Ticket ${ticketId}`);
+  persistDb();
+
+  // Send email to admin / Nodal officer
+  try {
+    const adminEmail = process.env.ADMIN_EMAIL || 'assudanigroup@gmail.com';
+    await Mailer.send(
+      adminEmail,
+      `[Dispute / Grievance ${ticketId}] ${req.rest.name}: ${category}`,
+      `Grievance Ticket: ${ticketId}\n` +
+      `Restaurant: ${req.rest.name} (ShortID: ${req.rest.shortId})\n` +
+      `Owner: ${req.rest.ownerName} (${req.rest.phone})\n` +
+      `Category: ${category}\n` +
+      `UTR / Reference: ${g.utrRef || 'N/A'}\n` +
+      `Callback Phone: ${g.contactPhone}\n` +
+      `Contact Email: ${g.contactEmail}\n\n` +
+      `Details / Description:\n${description}\n\n` +
+      `Registered At: ${g.createdAt}\n` +
+      `Statutory SLA: Acknowledged immediately · Formal resolution within 24-48 business hours.`
+    );
+  } catch (_) {}
+
+  res.json({
+    success: true,
+    ticketId,
+    grievance: g,
+    message: 'Your dispute / grievance has been registered. Under DPDP Act 2023 & Consumer Protection rules, Nodal Officer (Piyush Assudani) will review and reach out within 24 hours.',
+    nodalOfficer: {
+      name: 'Piyush Assudani',
+      role: 'Founder & Grievance Officer, Assudani Developers',
+      email: 'assudanigroup@gmail.com',
+      phone: '+91 9413879444',
+    },
+  });
 });
 
 router.use(require('./ownerOps'));
