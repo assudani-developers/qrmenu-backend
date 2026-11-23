@@ -1,0 +1,798 @@
+{
+  "adminConfig": {
+    "adminUpiId": "",
+    "adminPhone": "",
+    "supportEmail": "",
+    "plans": {},
+    "settings": {
+      "trialDays": 7,
+      "trialEnabled": true,
+      "maintenanceMode": false,
+      "signupsOpen": true
+    }
+  },
+  "restaurants": [
+    {
+      "id": "rest-4e242893e7",
+      "name": "Saffron Courtyard",
+      "ownerName": "Demo Owner",
+      "phone": "9000035997",
+      "city": "Jaipur",
+      "cuisine": "",
+      "tagline": "",
+      "slug": "saffron-courtyard",
+      "shortId": "419430",
+      "upiId": "",
+      "googleReviewUrl": "",
+      "isActive": true,
+      "mrr": 0,
+      "totalScans": 0,
+      "scanLog": [],
+      "joinedDate": "23 Nov 2026",
+      "createdAt": "2026-11-23T07:54:49.366Z",
+      "brandColorHex": "#D97706",
+      "tables": [
+        "Table 1",
+        "Table 2",
+        "Table 3",
+        "Table 4"
+      ],
+      "categories": [
+        "Starters",
+        "Mains",
+        "Breads",
+        "Drinks",
+        "Desserts"
+      ],
+      "items": [
+        {
+          "id": "d_mwsz03wohi9s",
+          "name": "Paneer Tikka",
+          "category": "Starters",
+          "price": 308,
+          "description": "Smoky cottage cheese cubes charred in the tandoor with mint chutney.",
+          "ingredients": "",
+          "allergens": [],
+          "isVeg": true,
+          "spiceLevel": "none",
+          "isAvailable": true,
+          "imageUrl": "",
+          "tags": [],
+          "variants": [],
+          "modifiers": []
+        },
+        {
+          "id": "d_mwsz03wpq3p5",
+          "name": "Chicken 65",
+          "category": "Starters",
+          "price": 352,
+          "description": "",
+          "ingredients": "",
+          "allergens": [],
+          "isVeg": false,
+          "spiceLevel": "none",
+          "isAvailable": true,
+          "imageUrl": "",
+          "tags": [],
+          "variants": [],
+          "modifiers": []
+        },
+        {
+          "id": "d_mwsz03wqvstv",
+          "name": "Dal Makhani",
+          "category": "Mains",
+          "price": 286,
+          "description": "Black lentils slow-cooked overnight with butter and cream.",
+          "ingredients": "",
+          "allergens": [],
+          "isVeg": true,
+          "spiceLevel": "none",
+          "isAvailable": true,
+          "imageUrl": "",
+          "tags": [],
+          "variants": [],
+          "modifiers": []
+        },
+        {
+          "id": "d_mwsz03wra5sf",
+          "name": "Butter Chicken",
+          "category": "Mains",
+          "price": 418,
+          "description": "Tandoori chicken in a silky tomato and butter gravy.",
+          "ingredients": "",
+          "allergens": [],
+          "isVeg": false,
+          "spiceLevel": "none",
+          "isAvailable": true,
+          "imageUrl": "",
+          "tags": [],
+          "variants": [],
+          "modifiers": []
+        },
+        {
+          "id": "d_mwsz03ws20ck",
+          "name": "Veg Biryani",
+          "category": "Mains",
+          "price": 319,
+          "description": "",
+          "ingredients": "",
+          "allergens": [],
+          "isVeg": true,
+          "spiceLevel": "none",
+          "isAvailable": true,
+          "imageUrl": "",
+          "tags": [],
+          "variants": [],
+          "modifiers": []
+        },
+        {
+          "id": "d_mwsz03wtoax1",
+          "name": "Garlic Naan",
+          "category": "Breads",
+          "price": 77,
+          "description": "Leavened bread brushed with garlic butter.",
+          "ingredients": "",
+          "allergens": [],
+          "isVeg": true,
+          "spiceLevel": "none",
+          "isAvailable": true,
+          "imageUrl": "",
+          "tags": [],
+          "variants": [],
+          "modifiers": []
+        },
+        {
+          "id": "d_mwsz03wu4r44",
+          "name": "Tandoori Roti",
+          "category": "Breads",
+          "price": 39,
+          "description": "",
+          "ingredients": "",
+          "allergens": [],
+          "isVeg": true,
+          "spiceLevel": "none",
+          "isAvailable": false,
+          "imageUrl": "",
+          "tags": [],
+          "variants": [],
+          "modifiers": []
+        },
+        {
+          "id": "d_mwsz03wvze12",
+          "name": "Masala Chai",
+          "category": "Drinks",
+          "price": 66,
+          "description": "Assam tea brewed with ginger and cardamom.",
+          "ingredients": "",
+          "allergens": [],
+          "isVeg": true,
+          "spiceLevel": "none",
+          "isAvailable": true,
+          "imageUrl": "",
+          "tags": [],
+          "variants": [],
+          "modifiers": []
+        },
+        {
+          "id": "d_mwsz03wwizn7",
+          "name": "Sweet Lassi",
+          "category": "Drinks",
+          "price": 99,
+          "description": "",
+          "ingredients": "",
+          "allergens": [],
+          "isVeg": true,
+          "spiceLevel": "none",
+          "isAvailable": true,
+          "imageUrl": "",
+          "tags": [],
+          "variants": [],
+          "modifiers": []
+        },
+        {
+          "id": "d_mwsz03wxkszs",
+          "name": "Gulab Jamun",
+          "category": "Desserts",
+          "price": 0,
+          "description": "",
+          "ingredients": "",
+          "allergens": [],
+          "isVeg": true,
+          "spiceLevel": "none",
+          "isAvailable": true,
+          "imageUrl": "",
+          "tags": [],
+          "variants": [],
+          "modifiers": []
+        }
+      ],
+      "subscription": {
+        "plan": "master",
+        "status": "trial",
+        "trialStartedAt": "2026-11-23T07:54:49.366Z",
+        "trialEndsAt": "2026-11-30T07:54:49.366Z",
+        "paidUntil": null
+      },
+      "owner": {
+        "salt": "342787965b7ec8c817df1f13323b71f3",
+        "hash": "93ef483efa5dbbbd01ffba5ea1bd3f4d32ec482794e095bdfdaf4bd5d58ddeca"
+      },
+      "theme": {
+        "template": "classic",
+        "primary": "#D97706",
+        "accent": "#1F0F14",
+        "background": "#FFFBF5",
+        "text": "#1F2937",
+        "font": "sans",
+        "radius": 18,
+        "layout": "list",
+        "showImages": true,
+        "darkMode": "auto",
+        "logoUrl": "",
+        "coverUrl": "",
+        "welcome": "",
+        "announcement": "",
+        "currency": "₹",
+        "showVegToggle": true,
+        "showSearch": true,
+        "qrTheme": "classic"
+      },
+      "aiScans": {
+        "month": "2026-11",
+        "count": 0
+      },
+      "notifications": [
+        {
+          "id": "n_mwsz03x32iq",
+          "type": "order",
+          "title": "New order #5 · Table 1",
+          "body": "2 items · ₹150",
+          "data": {
+            "orderId": "419430-5"
+          },
+          "read": false,
+          "createdAt": "2026-11-23T07:54:49.431Z"
+        },
+        {
+          "id": "n_mwsz03x2olu",
+          "type": "order",
+          "title": "New order #4 · Table 1",
+          "body": "4 items · ₹780",
+          "data": {
+            "orderId": "419430-4"
+          },
+          "read": false,
+          "createdAt": "2026-11-23T07:54:49.430Z"
+        },
+        {
+          "id": "n_mwsz03x13tv",
+          "type": "order",
+          "title": "New order #3 · Table 1",
+          "body": "2 items · ₹610",
+          "data": {
+            "orderId": "419430-3"
+          },
+          "read": false,
+          "createdAt": "2026-11-23T07:54:49.429Z"
+        },
+        {
+          "id": "n_mwsz03x152b",
+          "type": "order",
+          "title": "New order #2 · Table 1",
+          "body": "3 items · ₹510",
+          "data": {
+            "orderId": "419430-2"
+          },
+          "read": false,
+          "createdAt": "2026-11-23T07:54:49.429Z"
+        },
+        {
+          "id": "n_mwsz03x0w0j",
+          "type": "order",
+          "title": "New order #1 · Table 1",
+          "body": "3 items · ₹610",
+          "data": {
+            "orderId": "419430-1"
+          },
+          "read": false,
+          "createdAt": "2026-11-23T07:54:49.428Z"
+        }
+      ],
+      "orderSeq": 5,
+      "email": "",
+      "social": {
+        "instagram": "",
+        "facebook": "",
+        "whatsapp": "",
+        "website": "",
+        "maps": ""
+      },
+      "address": "",
+      "openingHours": "",
+      "fssai": "",
+      "gstin": "",
+      "about": "",
+      "prefs": {
+        "orderSound": true,
+        "receiptAnimation": true,
+        "autoAccept": false
+      },
+      "store": {
+        "open": true,
+        "prepMinutes": 20,
+        "takeaway": true,
+        "wifiName": "",
+        "wifiPassword": ""
+      },
+      "categorySchedule": {},
+      "serviceCalls": [],
+      "reservations": [],
+      "inventory": [],
+      "inventoryLogs": [],
+      "suppliers": [],
+      "voice": {
+        "enabled": true,
+        "language": "hi",
+        "speed": 1,
+        "speakDishNames": true,
+        "volume": 1,
+        "kitchenSpeaker": true
+      },
+      "crm": {
+        "loyaltyRate": 10,
+        "minRedeemPoints": 50,
+        "vipThresholds": {
+          "silver": 2000,
+          "gold": 5000,
+          "platinum": 10000
+        }
+      },
+      "staff": [],
+      "branches": [],
+      "currentPlan": "master",
+      "plan": "master"
+    },
+    {
+      "id": "rest-a1f9fd0643",
+      "name": "qwef",
+      "ownerName": "sdfg",
+      "phone": "1234567890",
+      "city": "sdf",
+      "cuisine": "North Indian",
+      "tagline": "",
+      "slug": "qwef",
+      "shortId": "6d4303",
+      "upiId": "",
+      "googleReviewUrl": "",
+      "isActive": true,
+      "mrr": 0,
+      "totalScans": 0,
+      "scanLog": [],
+      "joinedDate": "20 Nov 2026",
+      "createdAt": "2026-11-20T06:19:49.860Z",
+      "brandColorHex": "#D97706",
+      "tables": [
+        "Table 1",
+        "Table 2",
+        "Table 3",
+        "Table 4"
+      ],
+      "categories": [],
+      "items": [],
+      "subscription": {
+        "plan": "growth",
+        "status": "trial",
+        "trialStartedAt": "2026-11-20T06:19:49.860Z",
+        "trialEndsAt": "2026-11-27T06:19:49.860Z",
+        "paidUntil": null
+      },
+      "owner": {
+        "salt": "27df7dfab530f92884ae4a9a442daad0",
+        "hash": "303be1b7688c36cf97f376a3c1352bab94be703d022a2550689980b963fce430"
+      },
+      "theme": {
+        "template": "classic",
+        "primary": "#D97706",
+        "accent": "#1F0F14",
+        "background": "#FFFBF5",
+        "text": "#1F2937",
+        "font": "sans",
+        "radius": 18,
+        "layout": "list",
+        "showImages": true,
+        "darkMode": "auto",
+        "logoUrl": "",
+        "coverUrl": "",
+        "welcome": "",
+        "announcement": "",
+        "currency": "₹",
+        "showVegToggle": true,
+        "showSearch": true,
+        "qrTheme": "classic"
+      },
+      "aiScans": {
+        "month": "2026-11",
+        "count": 0
+      },
+      "notifications": [],
+      "orderSeq": 0,
+      "email": "",
+      "currentPlan": "growth",
+      "plan": "growth",
+      "social": {
+        "instagram": "",
+        "facebook": "",
+        "whatsapp": "",
+        "website": "",
+        "maps": ""
+      },
+      "address": "",
+      "openingHours": "",
+      "fssai": "",
+      "gstin": "",
+      "about": "",
+      "prefs": {
+        "orderSound": true,
+        "receiptAnimation": true,
+        "autoAccept": false
+      },
+      "store": {
+        "open": true,
+        "prepMinutes": 20,
+        "takeaway": true,
+        "wifiName": "",
+        "wifiPassword": ""
+      },
+      "categorySchedule": {},
+      "serviceCalls": [],
+      "reservations": [],
+      "inventory": [],
+      "inventoryLogs": [],
+      "suppliers": [],
+      "voice": {
+        "enabled": true,
+        "language": "hi",
+        "speed": 1,
+        "speakDishNames": true,
+        "volume": 1,
+        "kitchenSpeaker": true
+      },
+      "crm": {
+        "loyaltyRate": 10,
+        "minRedeemPoints": 50,
+        "vipThresholds": {
+          "silver": 2000,
+          "gold": 5000,
+          "platinum": 10000
+        }
+      },
+      "staff": [],
+      "branches": []
+    }
+  ],
+  "orders": [
+    {
+      "id": "419430-5",
+      "token": 5,
+      "trackKey": "224766d6",
+      "restaurantId": "rest-4e242893e7",
+      "tableNumber": "Table 1",
+      "customer": {
+        "name": "Guest",
+        "phone": "9811111111"
+      },
+      "status": "pending",
+      "items": [
+        {
+          "dishId": "d_mwsz03wvze12",
+          "name": "Masala Chai",
+          "qty": 1,
+          "price": 60,
+          "modifiers": [],
+          "addons": [],
+          "notes": null
+        },
+        {
+          "dishId": "d_mwsz03wwizn7",
+          "name": "Sweet Lassi",
+          "qty": 1,
+          "price": 90,
+          "modifiers": [],
+          "addons": [],
+          "notes": null
+        }
+      ],
+      "billing": {
+        "itemsSubtotal": 150,
+        "discountAmount": 0,
+        "discountPercent": 0,
+        "taxableAmount": 150,
+        "taxAmount": 0,
+        "taxRatePercent": 0,
+        "deliveryFee": 0,
+        "grandTotal": 150,
+        "calculatedAt": "2026-11-23T07:54:49.431Z"
+      },
+      "totalAmount": 150,
+      "customerNotes": null,
+      "orderType": "dine_in",
+      "payment": {
+        "status": "unpaid",
+        "method": null
+      },
+      "etaMinutes": 20,
+      "source": "customer",
+      "createdAt": "2026-11-23T07:54:49.431Z"
+    },
+    {
+      "id": "419430-4",
+      "token": 4,
+      "trackKey": "506a3835",
+      "restaurantId": "rest-4e242893e7",
+      "tableNumber": "Table 1",
+      "customer": {
+        "name": "Guest",
+        "phone": "9811111111"
+      },
+      "status": "pending",
+      "items": [
+        {
+          "dishId": "d_mwsz03wqvstv",
+          "name": "Dal Makhani",
+          "qty": 1,
+          "price": 260,
+          "modifiers": [],
+          "addons": [],
+          "notes": null
+        },
+        {
+          "dishId": "d_mwsz03wra5sf",
+          "name": "Butter Chicken",
+          "qty": 1,
+          "price": 380,
+          "modifiers": [],
+          "addons": [],
+          "notes": null
+        },
+        {
+          "dishId": "d_mwsz03wtoax1",
+          "name": "Garlic Naan",
+          "qty": 1,
+          "price": 70,
+          "modifiers": [],
+          "addons": [],
+          "notes": null
+        },
+        {
+          "dishId": "d_mwsz03wtoax1",
+          "name": "Garlic Naan",
+          "qty": 1,
+          "price": 70,
+          "modifiers": [],
+          "addons": [],
+          "notes": null
+        }
+      ],
+      "billing": {
+        "itemsSubtotal": 780,
+        "discountAmount": 0,
+        "discountPercent": 0,
+        "taxableAmount": 780,
+        "taxAmount": 0,
+        "taxRatePercent": 0,
+        "deliveryFee": 0,
+        "grandTotal": 780,
+        "calculatedAt": "2026-11-23T07:54:49.430Z"
+      },
+      "totalAmount": 780,
+      "customerNotes": null,
+      "orderType": "dine_in",
+      "payment": {
+        "status": "unpaid",
+        "method": null
+      },
+      "etaMinutes": 20,
+      "source": "customer",
+      "createdAt": "2026-11-23T07:54:49.430Z"
+    },
+    {
+      "id": "419430-3",
+      "token": 3,
+      "trackKey": "b2a671e3",
+      "restaurantId": "rest-4e242893e7",
+      "tableNumber": "Table 1",
+      "customer": {
+        "name": "Guest",
+        "phone": "9811111111"
+      },
+      "status": "pending",
+      "items": [
+        {
+          "dishId": "d_mwsz03wpq3p5",
+          "name": "Chicken 65",
+          "qty": 1,
+          "price": 320,
+          "modifiers": [],
+          "addons": [],
+          "notes": null
+        },
+        {
+          "dishId": "d_mwsz03ws20ck",
+          "name": "Veg Biryani",
+          "qty": 1,
+          "price": 290,
+          "modifiers": [],
+          "addons": [],
+          "notes": null
+        }
+      ],
+      "billing": {
+        "itemsSubtotal": 610,
+        "discountAmount": 0,
+        "discountPercent": 0,
+        "taxableAmount": 610,
+        "taxAmount": 0,
+        "taxRatePercent": 0,
+        "deliveryFee": 0,
+        "grandTotal": 610,
+        "calculatedAt": "2026-11-23T07:54:49.429Z"
+      },
+      "totalAmount": 610,
+      "customerNotes": null,
+      "orderType": "dine_in",
+      "payment": {
+        "status": "unpaid",
+        "method": null
+      },
+      "etaMinutes": 20,
+      "source": "customer",
+      "createdAt": "2026-11-23T07:54:49.429Z"
+    },
+    {
+      "id": "419430-2",
+      "token": 2,
+      "trackKey": "dc57d492",
+      "restaurantId": "rest-4e242893e7",
+      "tableNumber": "Table 1",
+      "customer": {
+        "name": "Guest",
+        "phone": "9811111111"
+      },
+      "status": "pending",
+      "items": [
+        {
+          "dishId": "d_mwsz03wra5sf",
+          "name": "Butter Chicken",
+          "qty": 1,
+          "price": 380,
+          "modifiers": [],
+          "addons": [],
+          "notes": null
+        },
+        {
+          "dishId": "d_mwsz03wtoax1",
+          "name": "Garlic Naan",
+          "qty": 1,
+          "price": 70,
+          "modifiers": [],
+          "addons": [],
+          "notes": null
+        },
+        {
+          "dishId": "d_mwsz03wvze12",
+          "name": "Masala Chai",
+          "qty": 1,
+          "price": 60,
+          "modifiers": [],
+          "addons": [],
+          "notes": null
+        }
+      ],
+      "billing": {
+        "itemsSubtotal": 510,
+        "discountAmount": 0,
+        "discountPercent": 0,
+        "taxableAmount": 510,
+        "taxAmount": 0,
+        "taxRatePercent": 0,
+        "deliveryFee": 0,
+        "grandTotal": 510,
+        "calculatedAt": "2026-11-23T07:54:49.429Z"
+      },
+      "totalAmount": 510,
+      "customerNotes": null,
+      "orderType": "dine_in",
+      "payment": {
+        "status": "unpaid",
+        "method": null
+      },
+      "etaMinutes": 20,
+      "source": "customer",
+      "createdAt": "2026-11-23T07:54:49.429Z"
+    },
+    {
+      "id": "419430-1",
+      "token": 1,
+      "trackKey": "265b7c43",
+      "restaurantId": "rest-4e242893e7",
+      "tableNumber": "Table 1",
+      "customer": {
+        "name": "Guest",
+        "phone": "9811111111"
+      },
+      "status": "pending",
+      "items": [
+        {
+          "dishId": "d_mwsz03wohi9s",
+          "name": "Paneer Tikka",
+          "qty": 1,
+          "price": 280,
+          "modifiers": [],
+          "addons": [],
+          "notes": null
+        },
+        {
+          "dishId": "d_mwsz03wqvstv",
+          "name": "Dal Makhani",
+          "qty": 1,
+          "price": 260,
+          "modifiers": [],
+          "addons": [],
+          "notes": null
+        },
+        {
+          "dishId": "d_mwsz03wtoax1",
+          "name": "Garlic Naan",
+          "qty": 1,
+          "price": 70,
+          "modifiers": [],
+          "addons": [],
+          "notes": null
+        }
+      ],
+      "billing": {
+        "itemsSubtotal": 610,
+        "discountAmount": 0,
+        "discountPercent": 0,
+        "taxableAmount": 610,
+        "taxAmount": 0,
+        "taxRatePercent": 0,
+        "deliveryFee": 0,
+        "grandTotal": 610,
+        "calculatedAt": "2026-11-23T07:54:49.428Z"
+      },
+      "totalAmount": 610,
+      "customerNotes": null,
+      "orderType": "dine_in",
+      "payment": {
+        "status": "unpaid",
+        "method": null
+      },
+      "etaMinutes": 20,
+      "source": "customer",
+      "createdAt": "2026-11-23T07:54:49.428Z"
+    }
+  ],
+  "feedbacks": [],
+  "payments": [],
+  "activities": [
+    {
+      "id": "ACT-9407",
+      "type": "restaurant",
+      "title": "New signup",
+      "description": "Saffron Courtyard joined on the master trial.",
+      "timeAgo": "Just now",
+      "timestamp": "2026-11-23T07:54:49.407Z"
+    },
+    {
+      "id": "ACT-9892",
+      "type": "restaurant",
+      "title": "New signup",
+      "description": "qwef joined on the growth trial.",
+      "timeAgo": "Just now",
+      "timestamp": "2026-11-20T06:19:49.893Z"
+    }
+  ],
+  "leads": [],
+  "coupons": []
+}

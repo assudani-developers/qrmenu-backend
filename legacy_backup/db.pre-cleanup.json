@@ -1,0 +1,966 @@
+{
+  "adminConfig": {
+    "adminUpiId": "9413879444@superyes",
+    "adminPhone": "+91 94138 79444",
+    "supportEmail": "billing@qrmenu.pro",
+    "plans": {
+      "starter": {
+        "name": "Starter Plan",
+        "price": 199,
+        "limitItems": 50,
+        "orderingEnabled": false
+      },
+      "growth": {
+        "name": "Growth Plan",
+        "price": 399,
+        "limitItems": 9999,
+        "orderingEnabled": true
+      },
+      "elite": {
+        "name": "Elite Plan",
+        "price": 699,
+        "limitItems": 9999,
+        "orderingEnabled": true
+      }
+    },
+    "settings": {
+      "trialDays": 7,
+      "trialEnabled": true,
+      "maintenanceMode": false,
+      "signupsOpen": true
+    }
+  },
+  "restaurants": [
+    {
+      "id": "rest-001",
+      "name": "The Grand Symphony & Lounge",
+      "ownerName": "Vikramaditya Oberoi",
+      "phone": "+91 98765 43210",
+      "city": "Mumbai",
+      "tagline": "Luxury Fine Dine & Artisan Cocktails",
+      "slug": "grand-symphony",
+      "shortId": "8f7d6",
+      "upiId": "grandsymphony@okaxis",
+      "googleReviewUrl": "https://g.page/r/sample-google-review",
+      "isActive": true,
+      "currentPlan": "growth",
+      "plan": "growth",
+      "mrr": 399,
+      "totalScans": 14200,
+      "joinedDate": "12 Oct 2026",
+      "brandColorHex": "#D97706",
+      "tables": [
+        "Table 1",
+        "Table 2",
+        "Table 3",
+        "Table 4",
+        "Table 5 (Family)",
+        "Table 6 (VIP Lounge)",
+        "Rooftop 1",
+        "Rooftop 2"
+      ],
+      "categories": [
+        "Starters & Sizzlers",
+        "Main Course",
+        "Tandoor Breads",
+        "Drinks & Cocktails",
+        "Desserts"
+      ],
+      "items": [
+        {
+          "id": "d1",
+          "name": "Sizzling Truffle Paneer Platter",
+          "category": "Starters & Sizzlers",
+          "price": 490,
+          "description": "Hot sizzling cottage cheese in black truffle butter.",
+          "isVeg": true,
+          "spiceLevel": "medium",
+          "isAvailable": true,
+          "imageUrl": "https://images.unsplash.com/photo-1567188040759-fb8a883dc6d8?w=500",
+          "variants": [
+            {
+              "id": "v1",
+              "name": "Single Portion",
+              "price": 490
+            },
+            {
+              "id": "v2",
+              "name": "Platter for Two",
+              "price": 790
+            }
+          ],
+          "modifiers": [
+            {
+              "id": "m1",
+              "name": "Extra White Truffle Butter",
+              "price": 60
+            },
+            {
+              "id": "m2",
+              "name": "Aged Parmesan Crust",
+              "price": 40
+            }
+          ]
+        },
+        {
+          "id": "d2",
+          "name": "Flaming Tandoori Chicken Sizzler",
+          "category": "Starters & Sizzlers",
+          "price": 580,
+          "description": "Table-flamed spring chicken with Kashmiri saffron marinade.",
+          "isVeg": false,
+          "spiceLevel": "spicy",
+          "isAvailable": true,
+          "imageUrl": "https://images.unsplash.com/photo-1599488615731-7e5c2823ff28?w=500",
+          "variants": [
+            {
+              "id": "v3",
+              "name": "Half (4 Pcs)",
+              "price": 340
+            },
+            {
+              "id": "v4",
+              "name": "Full (8 Pcs)",
+              "price": 580
+            }
+          ],
+          "modifiers": [
+            {
+              "id": "m3",
+              "name": "Extra Spiced Butter Dip",
+              "price": 40
+            }
+          ]
+        },
+        {
+          "id": "d3",
+          "name": "24hr Charcoal Dal Bukhara",
+          "category": "Main Course",
+          "price": 460,
+          "description": "Slow-simmered black lentils on charcoal with white churned butter.",
+          "isVeg": true,
+          "spiceLevel": "mild",
+          "isAvailable": true,
+          "imageUrl": "https://images.unsplash.com/photo-1546833999-b9f581a1996d?w=500"
+        },
+        {
+          "id": "d4",
+          "name": "Old Delhi Velvet Butter Chicken",
+          "category": "Main Course",
+          "price": 540,
+          "description": "Boneless clay oven chicken in rich tomato makhani gravy.",
+          "isVeg": false,
+          "spiceLevel": "mild",
+          "isAvailable": false,
+          "imageUrl": "https://images.unsplash.com/photo-1588166524941-3bf61a9c41db?w=500"
+        },
+        {
+          "id": "d5",
+          "name": "Garlic & Herb Butter Naan",
+          "category": "Tandoor Breads",
+          "price": 110,
+          "description": "Tandoor baked flatbread with roasted garlic and butter.",
+          "isVeg": true,
+          "spiceLevel": "none",
+          "isAvailable": true,
+          "imageUrl": "https://images.unsplash.com/photo-1626074353765-517a681e40be?w=500"
+        },
+        {
+          "id": "d6",
+          "name": "Smoked Kokum Highball",
+          "category": "Drinks & Cocktails",
+          "price": 280,
+          "description": "Artisan kokum infusion with smoked rosemary wand and tonic.",
+          "isVeg": true,
+          "spiceLevel": "none",
+          "isAvailable": true,
+          "imageUrl": "https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b?w=500"
+        }
+      ],
+      "subscription": {
+        "plan": "growth",
+        "status": "active",
+        "trialStartedAt": null,
+        "trialEndsAt": null,
+        "paidUntil": "2026-12-18T18:47:03.872Z"
+      },
+      "theme": {
+        "template": "classic",
+        "primary": "#D97706",
+        "accent": "#1F0F14",
+        "background": "#FFFBF5",
+        "text": "#1F2937",
+        "font": "sans",
+        "radius": 18,
+        "layout": "list",
+        "showImages": true,
+        "darkMode": "auto",
+        "logoUrl": "",
+        "coverUrl": "",
+        "welcome": "",
+        "currency": "₹",
+        "showVegToggle": true,
+        "showSearch": true
+      },
+      "aiScans": {
+        "month": "2026-11",
+        "count": 0
+      },
+      "createdAt": "2026-11-18T18:47:03.872Z"
+    },
+    {
+      "id": "rest-002",
+      "name": "Urban Roasters & Bakery",
+      "ownerName": "Priya Sharma",
+      "phone": "+91 98123 45678",
+      "city": "Bangalore",
+      "tagline": "Artisan Sourdough & Third-Wave Coffee",
+      "slug": "urban-roasters",
+      "shortId": "9a3c2",
+      "upiId": "urbanroasters@okhdfcbank",
+      "googleReviewUrl": "https://g.page/r/urban-roasters",
+      "isActive": true,
+      "currentPlan": "elite",
+      "plan": "elite",
+      "mrr": 699,
+      "totalScans": 8120,
+      "joinedDate": "01 Nov 2026",
+      "brandColorHex": "#2563EB",
+      "tables": [
+        "Table 1",
+        "Table 2",
+        "Table 3",
+        "Patio 1",
+        "Patio 2"
+      ],
+      "categories": [
+        "Specialty Coffee",
+        "Artisan Bakery",
+        "Brunch Mains"
+      ],
+      "items": [
+        {
+          "id": "ur-1",
+          "name": "Signature Pour-Over Chemex",
+          "category": "Specialty Coffee",
+          "price": 260,
+          "description": "Single-estate Chikmagalur light roast with floral notes.",
+          "isVeg": true,
+          "spiceLevel": "none",
+          "isAvailable": true,
+          "imageUrl": "https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=500"
+        },
+        {
+          "id": "ur-2",
+          "name": "Classic Almond Butter Croissant",
+          "category": "Artisan Bakery",
+          "price": 190,
+          "description": "Twice-baked flaky croissant filled with rich frangipane.",
+          "isVeg": true,
+          "spiceLevel": "none",
+          "isAvailable": true,
+          "imageUrl": "https://images.unsplash.com/photo-1555507036-ab1f4038808a?w=500"
+        }
+      ],
+      "subscription": {
+        "plan": "elite",
+        "status": "active",
+        "trialStartedAt": null,
+        "trialEndsAt": null,
+        "paidUntil": "2026-12-18T18:47:03.872Z"
+      },
+      "theme": {
+        "template": "classic",
+        "primary": "#2563EB",
+        "accent": "#1F0F14",
+        "background": "#FFFBF5",
+        "text": "#1F2937",
+        "font": "sans",
+        "radius": 18,
+        "layout": "list",
+        "showImages": true,
+        "darkMode": "auto",
+        "logoUrl": "",
+        "coverUrl": "",
+        "welcome": "",
+        "currency": "₹",
+        "showVegToggle": true,
+        "showSearch": true
+      },
+      "aiScans": {
+        "month": "2026-11",
+        "count": 0
+      },
+      "createdAt": "2026-11-18T18:47:03.872Z"
+    },
+    {
+      "id": "rest-003",
+      "name": "Chai & Samosa Junction",
+      "ownerName": "Ramesh Patel",
+      "phone": "+91 97234 56789",
+      "city": "Ahmedabad",
+      "tagline": "Authentic Desi Chai & Street Delicacies",
+      "slug": "chai-junction",
+      "shortId": "7b4e1",
+      "upiId": "chaijunction@paytm",
+      "googleReviewUrl": "https://g.page/r/chai-junction",
+      "isActive": true,
+      "currentPlan": "starter",
+      "plan": "starter",
+      "mrr": 199,
+      "totalScans": 1240,
+      "joinedDate": "15 Oct 2026",
+      "brandColorHex": "#EA580C",
+      "tables": [
+        "Counter 1",
+        "Counter 2",
+        "Stall A"
+      ],
+      "categories": [
+        "Chai & Beverages",
+        "Hot Snacks"
+      ],
+      "items": [
+        {
+          "id": "cj-1",
+          "name": "Kullad Masala Chai",
+          "category": "Chai & Beverages",
+          "price": 40,
+          "description": "Brewed with crushed ginger, cardamom, and whole spices.",
+          "isVeg": true,
+          "spiceLevel": "none",
+          "isAvailable": true,
+          "imageUrl": "https://images.unsplash.com/photo-1576092768241-dec231879fc3?w=500"
+        }
+      ],
+      "subscription": {
+        "plan": "starter",
+        "status": "active",
+        "trialStartedAt": null,
+        "trialEndsAt": null,
+        "paidUntil": "2026-12-18T18:47:03.872Z"
+      },
+      "theme": {
+        "template": "classic",
+        "primary": "#EA580C",
+        "accent": "#1F0F14",
+        "background": "#FFFBF5",
+        "text": "#1F2937",
+        "font": "sans",
+        "radius": 18,
+        "layout": "list",
+        "showImages": true,
+        "darkMode": "auto",
+        "logoUrl": "",
+        "coverUrl": "",
+        "welcome": "",
+        "currency": "₹",
+        "showVegToggle": true,
+        "showSearch": true
+      },
+      "aiScans": {
+        "month": "2026-11",
+        "count": 0
+      },
+      "createdAt": "2026-11-18T18:47:03.872Z"
+    },
+    {
+      "id": "rest-004",
+      "name": "Royal Heritage Thali & Palace",
+      "ownerName": "Mahaveer Singh",
+      "phone": "+91 94140 12345",
+      "city": "Jaipur",
+      "tagline": "Imperial Marwari & Rajasthani Dining Experience",
+      "slug": "royal-heritage",
+      "shortId": "4c8f9",
+      "upiId": "royalheritage@superyes",
+      "googleReviewUrl": "https://g.page/r/royal-heritage",
+      "isActive": true,
+      "currentPlan": "elite",
+      "plan": "elite",
+      "mrr": 699,
+      "totalScans": 6450,
+      "joinedDate": "28 Sep 2026",
+      "brandColorHex": "#DC2626",
+      "tables": [
+        "Maharaja 1",
+        "Maharaja 2",
+        "Courtyard 1",
+        "Courtyard 2"
+      ],
+      "categories": [
+        "Royal Thalis",
+        "Desserts",
+        "Sharbat"
+      ],
+      "items": [
+        {
+          "id": "rh-1",
+          "name": "Grand Mewari Thali",
+          "category": "Royal Thalis",
+          "price": 650,
+          "description": "Dal Baati Churma, Gatta Curry, Ker Sangri with pure desi ghee.",
+          "isVeg": true,
+          "spiceLevel": "medium",
+          "isAvailable": true,
+          "imageUrl": "https://images.unsplash.com/photo-1610057099443-fde8c4d50f91?w=500"
+        }
+      ],
+      "subscription": {
+        "plan": "elite",
+        "status": "active",
+        "trialStartedAt": null,
+        "trialEndsAt": null,
+        "paidUntil": "2026-12-18T18:47:03.872Z"
+      },
+      "theme": {
+        "template": "classic",
+        "primary": "#DC2626",
+        "accent": "#1F0F14",
+        "background": "#FFFBF5",
+        "text": "#1F2937",
+        "font": "sans",
+        "radius": 18,
+        "layout": "list",
+        "showImages": true,
+        "darkMode": "auto",
+        "logoUrl": "",
+        "coverUrl": "",
+        "welcome": "",
+        "currency": "₹",
+        "showVegToggle": true,
+        "showSearch": true
+      },
+      "aiScans": {
+        "month": "2026-11",
+        "count": 0
+      },
+      "createdAt": "2026-11-18T18:47:03.873Z"
+    },
+    {
+      "id": "rest-005",
+      "name": "Spice Route Bistro",
+      "ownerName": "Ananya Sen",
+      "phone": "+91 98300 99887",
+      "city": "Kolkata",
+      "tagline": "Pan-Asian & Bengali Fusion Bistro",
+      "slug": "spice-route",
+      "shortId": "spc05",
+      "upiId": "spiceroute@icici",
+      "googleReviewUrl": "https://g.page/r/spice-route",
+      "isActive": false,
+      "currentPlan": "growth",
+      "plan": "growth",
+      "mrr": 399,
+      "totalScans": 3100,
+      "joinedDate": "05 Aug 2026",
+      "brandColorHex": "#059669",
+      "tables": [
+        "Table 1",
+        "Table 2",
+        "Table 3"
+      ],
+      "categories": [
+        "Appetizers",
+        "Curries",
+        "Biryani"
+      ],
+      "items": [],
+      "subscription": {
+        "plan": "growth",
+        "status": "active",
+        "trialStartedAt": null,
+        "trialEndsAt": null,
+        "paidUntil": "2026-12-18T18:47:03.873Z"
+      },
+      "theme": {
+        "template": "classic",
+        "primary": "#059669",
+        "accent": "#1F0F14",
+        "background": "#FFFBF5",
+        "text": "#1F2937",
+        "font": "sans",
+        "radius": 18,
+        "layout": "list",
+        "showImages": true,
+        "darkMode": "auto",
+        "logoUrl": "",
+        "coverUrl": "",
+        "welcome": "",
+        "currency": "₹",
+        "showVegToggle": true,
+        "showSearch": true
+      },
+      "aiScans": {
+        "month": "2026-11",
+        "count": 0
+      },
+      "createdAt": "2026-11-18T18:47:03.873Z"
+    },
+    {
+      "id": "rest-006",
+      "name": "Coastal Curry Co.",
+      "ownerName": "Naveen Fernandes",
+      "phone": "+91 98221 33445",
+      "city": "Goa",
+      "tagline": "Fresh Catch, Kokum Curries & Beach Vibes",
+      "slug": "coastal-curry",
+      "shortId": "cst06",
+      "upiId": "coastalcurry@sbi",
+      "googleReviewUrl": "https://g.page/r/coastal-curry",
+      "isActive": true,
+      "currentPlan": "growth",
+      "plan": "growth",
+      "mrr": 399,
+      "totalScans": 5600,
+      "joinedDate": "10 Nov 2026",
+      "brandColorHex": "#0891B2",
+      "tables": [
+        "Beachside 1",
+        "Beachside 2",
+        "Indoor 1"
+      ],
+      "categories": [
+        "Seafood Specials",
+        "Goan Curries",
+        "Coolers"
+      ],
+      "items": [],
+      "subscription": {
+        "plan": "growth",
+        "status": "active",
+        "trialStartedAt": null,
+        "trialEndsAt": null,
+        "paidUntil": "2026-12-18T18:47:03.873Z"
+      },
+      "theme": {
+        "template": "classic",
+        "primary": "#0891B2",
+        "accent": "#1F0F14",
+        "background": "#FFFBF5",
+        "text": "#1F2937",
+        "font": "sans",
+        "radius": 18,
+        "layout": "list",
+        "showImages": true,
+        "darkMode": "auto",
+        "logoUrl": "",
+        "coverUrl": "",
+        "welcome": "",
+        "currency": "₹",
+        "showVegToggle": true,
+        "showSearch": true
+      },
+      "aiScans": {
+        "month": "2026-11",
+        "count": 0
+      },
+      "createdAt": "2026-11-18T18:47:03.873Z"
+    }
+  ],
+  "orders": [
+    {
+      "id": "KOT-651",
+      "receiptNo": "AQ-REC-21031",
+      "tableNumber": "Table 2",
+      "customer": {
+        "name": "Guest Diner",
+        "phone": ""
+      },
+      "status": "pending",
+      "items": [
+        {
+          "name": "Paneer Tikka",
+          "qty": 1,
+          "price": 260,
+          "notes": null
+        }
+      ],
+      "billing": {
+        "itemsSubtotal": 260,
+        "discountAmount": 0,
+        "discountPercent": 0,
+        "taxableAmount": 260,
+        "taxAmount": 13,
+        "taxRatePercent": 5,
+        "deliveryFee": 0,
+        "grandTotal": 273,
+        "calculatedAt": "2026-11-18T19:00:13.943Z"
+      },
+      "totalAmount": 273,
+      "customerNotes": null,
+      "receiptHeader": "Tax Invoice & Order Slip",
+      "receiptFooter": "Thank you for dining with us! Freshly cooked with passion.",
+      "watermark": "POWERED BY ASSUDANI QR OS • DESIGNED & DEVELOPED BY PIYUSH ASSUDANI (FOUNDER, ASSUDANI DEVELOPERS)",
+      "createdAt": "2026-11-18T19:00:13.943Z",
+      "timeAgo": "Just now"
+    },
+    {
+      "id": "KOT-101",
+      "restaurantId": "rest-001",
+      "tableNumber": "Table 4",
+      "status": "pending",
+      "items": [
+        {
+          "name": "Sizzling Truffle Paneer Platter",
+          "qty": 1,
+          "price": 490,
+          "notes": "Extra sizzling, no onion"
+        },
+        {
+          "name": "Smoked Kokum Highball",
+          "qty": 2,
+          "price": 280
+        }
+      ],
+      "billing": {
+        "itemsSubtotal": 1050,
+        "discountAmount": 0,
+        "taxAmount": 52.5,
+        "deliveryFee": 0,
+        "grandTotal": 1102.5
+      },
+      "totalAmount": 1102.5,
+      "createdAt": "2026-11-18T06:31:16.587Z",
+      "timeAgo": "2m ago"
+    },
+    {
+      "id": "KOT-102",
+      "restaurantId": "rest-001",
+      "tableNumber": "Table 9 (VIP)",
+      "status": "cooking",
+      "items": [
+        {
+          "name": "Flaming Tandoori Chicken Sizzler",
+          "qty": 2,
+          "price": 580,
+          "notes": "Extra spicy flame"
+        },
+        {
+          "name": "Garlic & Herb Butter Naan",
+          "qty": 4,
+          "price": 110
+        },
+        {
+          "name": "Old Delhi Velvet Butter Chicken",
+          "qty": 1,
+          "price": 540
+        }
+      ],
+      "billing": {
+        "itemsSubtotal": 2140,
+        "discountAmount": 0,
+        "taxAmount": 107,
+        "deliveryFee": 0,
+        "grandTotal": 2247
+      },
+      "totalAmount": 2247,
+      "createdAt": "2026-11-18T06:26:16.587Z",
+      "timeAgo": "7m ago"
+    },
+    {
+      "id": "KOT-103",
+      "restaurantId": "rest-001",
+      "tableNumber": "Table 2",
+      "status": "served",
+      "items": [
+        {
+          "name": "24hr Charcoal Dal Bukhara",
+          "qty": 1,
+          "price": 460
+        },
+        {
+          "name": "Garlic & Herb Butter Naan",
+          "qty": 1,
+          "price": 110
+        }
+      ],
+      "billing": {
+        "itemsSubtotal": 570,
+        "discountAmount": 0,
+        "taxAmount": 28.5,
+        "deliveryFee": 0,
+        "grandTotal": 598.5
+      },
+      "totalAmount": 598.5,
+      "createdAt": "2026-11-18T06:18:16.587Z",
+      "timeAgo": "15m ago"
+    }
+  ],
+  "feedbacks": [
+    {
+      "id": "fb-1",
+      "customerName": "Aarav Patel",
+      "phone": "+91 98220 11223",
+      "tableNumber": "Table 3",
+      "rating": 2,
+      "message": "Paneer sizzler took 25 minutes to arrive. Please speed up kitchen service.",
+      "timestamp": "18m ago",
+      "isResolved": false,
+      "isIntercepted": true,
+      "createdAt": "2026-11-18T06:15:16.587Z"
+    },
+    {
+      "id": "fb-2",
+      "customerName": "Meera Iyer",
+      "phone": "+91 98110 44556",
+      "tableNumber": "Table 6 (VIP)",
+      "rating": 3,
+      "message": "Highball cocktail had too much tonic water. Rest of the food was exceptional.",
+      "timestamp": "45m ago",
+      "isResolved": false,
+      "isIntercepted": true,
+      "createdAt": "2026-11-18T05:48:16.587Z"
+    }
+  ],
+  "payments": [
+    {
+      "id": "TXN-90214",
+      "restaurantId": "rest-001",
+      "restaurantName": "The Grand Symphony & Lounge",
+      "ownerName": "Vikramaditya Oberoi",
+      "phone": "+91 98765 43210",
+      "planId": "growth",
+      "amount": 399,
+      "method": "UPI_INTENT",
+      "utrRef": "431876543219",
+      "payeeUpi": "9413879444@superyes",
+      "status": "verified",
+      "date": "2026-11-18T04:33:16.587Z",
+      "timeAgo": "2h ago",
+      "expiryExtendedTo": "18 Dec 2026"
+    },
+    {
+      "id": "TXN-90213",
+      "restaurantId": "rest-004",
+      "restaurantName": "Royal Heritage Thali & Palace",
+      "ownerName": "Mahaveer Singh",
+      "phone": "+91 94140 12345",
+      "planId": "elite",
+      "amount": 699,
+      "method": "RAZORPAY",
+      "utrRef": "pay_NzK8912M4k20",
+      "payeeUpi": "9413879444@superyes",
+      "status": "verified",
+      "date": "2026-11-18T02:33:16.587Z",
+      "timeAgo": "4h ago",
+      "expiryExtendedTo": "18 Dec 2026"
+    },
+    {
+      "id": "TXN-90212",
+      "restaurantId": "rest-002",
+      "restaurantName": "Urban Roasters & Bakery",
+      "ownerName": "Priya Sharma",
+      "phone": "+91 98123 45678",
+      "planId": "elite",
+      "amount": 699,
+      "method": "UPI_INTENT",
+      "utrRef": "431876543110",
+      "payeeUpi": "9413879444@superyes",
+      "status": "verified",
+      "date": "2026-11-17T16:33:16.587Z",
+      "timeAgo": "14h ago",
+      "expiryExtendedTo": "17 Dec 2026"
+    },
+    {
+      "id": "TXN-90211",
+      "restaurantId": "rest-003",
+      "restaurantName": "Chai & Samosa Junction",
+      "ownerName": "Ramesh Patel",
+      "phone": "+91 97234 56789",
+      "planId": "starter",
+      "amount": 199,
+      "method": "UPI_INTENT",
+      "utrRef": "431876542998",
+      "payeeUpi": "9413879444@superyes",
+      "status": "verified",
+      "date": "2026-11-17T04:33:16.587Z",
+      "timeAgo": "1d ago",
+      "expiryExtendedTo": "16 Dec 2026"
+    },
+    {
+      "id": "TXN-90210",
+      "restaurantId": "rest-005",
+      "restaurantName": "Spice Route Bistro",
+      "ownerName": "Ananya Sen",
+      "phone": "+91 98300 99887",
+      "planId": "growth",
+      "amount": 399,
+      "method": "UPI_INTENT",
+      "utrRef": "431876540012",
+      "payeeUpi": "9413879444@superyes",
+      "status": "pending",
+      "date": "2026-11-16T18:33:16.587Z",
+      "timeAgo": "1d ago",
+      "expiryExtendedTo": "Pending Verification"
+    },
+    {
+      "id": "TXN-90209",
+      "restaurantId": "rest-006",
+      "restaurantName": "Coastal Curry Co.",
+      "ownerName": "Naveen Fernandes",
+      "phone": "+91 98221 33445",
+      "planId": "growth",
+      "amount": 399,
+      "method": "UPI_INTENT",
+      "utrRef": "431876539981",
+      "payeeUpi": "9413879444@superyes",
+      "status": "verified",
+      "date": "2026-11-16T04:33:16.587Z",
+      "timeAgo": "2d ago",
+      "expiryExtendedTo": "15 Dec 2026"
+    }
+  ],
+  "broadcasts": [
+    {
+      "id": "BC-101",
+      "title": "Shopify-Style Quick Theme Customizer Launched!",
+      "message": "You can now switch between 6 luxury hospitality presets and customize brand hex colors in 1-tap.",
+      "target": "all",
+      "type": "update",
+      "date": "17 Nov 2026, 08:30 PM"
+    },
+    {
+      "id": "BC-102",
+      "title": "Instant Direct UPI App Payment Active",
+      "message": "Upgrade plans directly using Google Pay, PhonePe, Paytm, or BHIM with 0% gateway charges.",
+      "target": "all",
+      "type": "announcement",
+      "date": "17 Nov 2026, 11:00 PM"
+    }
+  ],
+  "activities": [
+    {
+      "id": "ACT-8251",
+      "type": "restaurant",
+      "title": "New signup (7-day trial)",
+      "description": "Spice Symphony joined on the growth trial.",
+      "timeAgo": "Just now",
+      "timestamp": "2026-11-18T19:06:38.251Z"
+    },
+    {
+      "id": "ACT-0258",
+      "type": "restaurant",
+      "title": "Restaurant deleted",
+      "description": "Chai & Co Cafe was removed by admin.",
+      "timeAgo": "Just now",
+      "timestamp": "2026-11-18T19:01:30.258Z"
+    },
+    {
+      "id": "ACT-0253",
+      "type": "restaurant",
+      "title": "Restaurant deleted",
+      "description": "Spice Symphony was removed by admin.",
+      "timeAgo": "Just now",
+      "timestamp": "2026-11-18T19:01:30.253Z"
+    },
+    {
+      "id": "ACT-5304",
+      "type": "restaurant",
+      "title": "New signup (7-day trial)",
+      "description": "Spice Symphony joined on the growth trial.",
+      "timeAgo": "Just now",
+      "timestamp": "2026-11-18T18:54:35.304Z"
+    },
+    {
+      "id": "ACT-4162",
+      "type": "payment",
+      "title": "Subscription updated",
+      "description": "Chai & Co Cafe: starter / expired (admin).",
+      "timeAgo": "Just now",
+      "timestamp": "2026-11-18T18:47:14.162Z"
+    },
+    {
+      "id": "ACT-2861",
+      "type": "restaurant",
+      "title": "New signup (7-day trial)",
+      "description": "Chai & Co Cafe joined on the starter trial.",
+      "timeAgo": "Just now",
+      "timestamp": "2026-11-18T18:47:12.861Z"
+    },
+    {
+      "id": "ACT-1",
+      "type": "payment",
+      "title": "UPI Payment Verified",
+      "description": "₹399 received from The Grand Symphony (Growth Plan) via UTR 431876543219",
+      "timeAgo": "10m ago",
+      "timestamp": "2026-11-18T06:23:16.587Z"
+    },
+    {
+      "id": "ACT-2",
+      "type": "scan",
+      "title": "QR Scan Traffic Active",
+      "description": "142 scans recorded across 8 tables in Mumbai & Bangalore today",
+      "timeAgo": "25m ago",
+      "timestamp": "2026-11-18T06:08:16.587Z"
+    },
+    {
+      "id": "ACT-3",
+      "type": "order",
+      "title": "KOT Order #102 Placed",
+      "description": "Table 9 (VIP) placed ₹2,140 dinner order with flaming tandoori chicken",
+      "timeAgo": "40m ago",
+      "timestamp": "2026-11-18T05:53:16.587Z"
+    },
+    {
+      "id": "ACT-4",
+      "type": "restaurant",
+      "title": "New Merchant Onboarded",
+      "description": "Coastal Curry Co. (Goa) successfully registered on Growth Plan",
+      "timeAgo": "2h ago",
+      "timestamp": "2026-11-18T04:33:16.587Z"
+    },
+    {
+      "id": "ACT-5",
+      "type": "broadcast",
+      "title": "Broadcast Dispatched",
+      "description": "Direct UPI App notification sent to all active mobile merchants",
+      "timeAgo": "4h ago",
+      "timestamp": "2026-11-18T02:33:16.587Z"
+    }
+  ],
+  "coupons": [
+    {
+      "id": "cpn-launch",
+      "code": "LAUNCH50",
+      "description": "50% off first month",
+      "type": "percent",
+      "value": 50,
+      "maxUses": 500,
+      "used": 0,
+      "expiresAt": null,
+      "plans": [],
+      "active": true,
+      "createdAt": "2026-11-18T18:47:03.872Z"
+    },
+    {
+      "id": "cpn-diwali",
+      "code": "FESTIVE100",
+      "description": "₹100 flat off",
+      "type": "flat",
+      "value": 100,
+      "maxUses": 200,
+      "used": 0,
+      "expiresAt": null,
+      "plans": [
+        "growth",
+        "elite"
+      ],
+      "active": true,
+      "createdAt": "2026-11-18T18:47:03.872Z"
+    },
+    {
+      "id": "cpn-trial",
+      "code": "EXTRA7",
+      "description": "+7 days free trial",
+      "type": "trial_days",
+      "value": 7,
+      "maxUses": 100,
+      "used": 0,
+      "expiresAt": null,
+      "plans": [],
+      "active": true,
+      "createdAt": "2026-11-18T18:47:03.872Z"
+    }
+  ]
+}

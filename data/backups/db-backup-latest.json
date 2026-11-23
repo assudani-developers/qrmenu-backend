@@ -1,0 +1,21 @@
+{
+  "adminConfig": {
+    "adminUpiId": "",
+    "adminPhone": "",
+    "supportEmail": "",
+    "plans": {},
+    "settings": {
+      "trialDays": 7,
+      "trialEnabled": true,
+      "maintenanceMode": false,
+      "signupsOpen": true
+    }
+  },
+  "restaurants": [],
+  "orders": [],
+  "feedbacks": [],
+  "payments": [],
+  "activities": [],
+  "leads": [],
+  "coupons": []
+}

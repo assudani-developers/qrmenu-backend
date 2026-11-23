@@ -1,0 +1,17 @@
+node_modules/
+.env
+npm-debug.log*
+.DS_Store
+data/backups/snapshot_*.json
+*.log
+*.tmp
+uploads/*
+!uploads/.gitkeep
+
+# Python OCR
+__pycache__/
+*.py[cod]
+*$py.class
+src/ocr/models/*.pth
+!src/ocr/models/.gitkeep
+

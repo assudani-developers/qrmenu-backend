@@ -1,0 +1,80 @@
+[
+ {
+  "category": "Starters",
+  "name": "Paneer Tikka",
+  "price": 260,
+  "veg": true
+ },
+ {
+  "category": "Starters",
+  "name": "Chicken 65",
+  "price": 290,
+  "veg": false
+ },
+ {
+  "category": "Starters",
+  "name": "Hara Bhara Kebab",
+  "price": 220,
+  "veg": true
+ },
+ {
+  "category": "Starters",
+  "name": "Veg Spring Rolls",
+  "price": 180,
+  "veg": true
+ },
+ {
+  "category": "Main Course",
+  "name": "Butter Chicken",
+  "price": 220,
+  "veg": false
+ },
+ {
+  "category": "Main Course",
+  "name": "Dal Makhani",
+  "price": 280,
+  "veg": true
+ },
+ {
+  "category": "Main Course",
+  "name": "Kadai Paneer",
+  "price": 310,
+  "veg": true
+ },
+ {
+  "category": "Main Course",
+  "name": "Mutton Rogan Josh",
+  "price": 460,
+  "veg": false
+ },
+ {
+  "category": "Breads",
+  "name": "Butter Naan",
+  "price": 70,
+  "veg": true
+ },
+ {
+  "category": "Breads",
+  "name": "Garlic Naan",
+  "price": 80,
+  "veg": true
+ },
+ {
+  "category": "Breads",
+  "name": "Tandoori Roti",
+  "price": 30,
+  "veg": true
+ },
+ {
+  "category": "Desserts",
+  "name": "Gulab Jamun",
+  "price": 120,
+  "veg": true
+ },
+ {
+  "category": "Desserts",
+  "name": "Rasmalai",
+  "price": 150,
+  "veg": true
+ }
+]
