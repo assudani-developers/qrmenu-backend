@@ -44,6 +44,7 @@ async function sendMail({ to, subject, html, text }) {
   const tx = getTransporter();
   const mailOptions = {
     from: `"${SENDER_NAME()}" <${SENDER_EMAIL()}>`,
+    replyTo: SENDER_EMAIL(),
     to,
     subject,
     text: text || html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(),
