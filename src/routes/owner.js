@@ -4,7 +4,7 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const { JWT_SECRET, generateToken } = require('../middleware/auth');
-const { inMemoryData, persistDb, rebuildIndexes, findRestaurantById, recordActivity, archiveRecord } = require('../db');
+const { inMemoryData, persistDb, rebuildIndexes, findRestaurantById, recordActivity, archiveRecord, withTableLock } = require('../db');
 const S = require('../services/saas');
 const { scanMenu } = require('../services/menuScanner');
 const RT = require('../services/realtime');
@@ -477,7 +477,7 @@ router.patch('/orders/:oid/status', needOrdering, (req, res) => {
   res.json({ success: true, order: o });
 });
 /** Staff / waiter punches an order for a table. */
-router.post('/orders', needOrdering, (req, res) => {
+router.post('/orders', needOrdering, async (req, res) => {
   const r = req.rest;
   const { tableNumber, items, customerNotes } = req.body || {};
   if (!tableNumber) return bad(res, 'Choose a table');
@@ -487,15 +487,18 @@ router.post('/orders', needOrdering, (req, res) => {
     const d = r.items.find((x) => x.id === it.dishId);
     if (!d) return bad(res, 'Dish not found', 404);
     const qty = parseInt(it.qty, 10);
-    if (!(qty >= 1 && qty <= 50)) return bad(res, 'Invalid quantity');
+    if (!Number.isInteger(qty) || qty < 1 || qty > 50) return bad(res, 'Invalid quantity');
     lines.push({ dishId: d.id, name: d.name, qty, price: S.effectivePrice(r, d, null), modifiers: [], notes: null });
   }
   const billing = calculateOrderBill({ items: lines, taxRatePercent: r.taxPercent || 0, discountPercent: 0 });
-  r.orderSeq = (r.orderSeq || 0) + 1;
-  const order = { id: `${r.shortId}-${r.orderSeq}`, token: r.orderSeq, trackKey: '', restaurantId: r.id, tableNumber: String(tableNumber), customer: { name: 'Walk-in', phone: '' }, status: 'pending', items: lines, billing, totalAmount: billing.grandTotal, customerNotes: customerNotes || null, orderType: String(tableNumber) === 'Takeaway' ? 'takeaway' : 'dine_in', payment: { status: 'unpaid', method: null }, source: 'staff', createdAt: new Date().toISOString() };
-  inMemoryData.orders.unshift(order);
-  persistDb();
-  RT.orderNew(r, order);
+  const order = await withTableLock(`${r.id}_${tableNumber}`, async () => {
+    r.orderSeq = (r.orderSeq || 0) + 1;
+    const o = { id: `${r.shortId}-${r.orderSeq}`, token: r.orderSeq, trackKey: '', restaurantId: r.id, tableNumber: String(tableNumber), customer: { name: 'Walk-in', phone: '' }, status: 'pending', items: lines, billing, totalAmount: billing.grandTotal, customerNotes: customerNotes || null, orderType: String(tableNumber) === 'Takeaway' ? 'takeaway' : 'dine_in', payment: { status: 'unpaid', method: null }, source: 'staff', createdAt: new Date().toISOString() };
+    inMemoryData.orders.unshift(o);
+    persistDb();
+    RT.orderNew(r, o);
+    return o;
+  });
   res.status(201).json({ success: true, order });
 });
 

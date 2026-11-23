@@ -4,7 +4,7 @@ const crypto = require('crypto');
 const path = require('path');
 const multer = require('multer');
 const sharp = require('sharp');
-const { inMemoryData, findRestaurantBySlug, findRestaurantByShortId, persistDb } = require('../db');
+const { inMemoryData, findRestaurantBySlug, findRestaurantByShortId, persistDb, withTableLock } = require('../db');
 const S = require('../services/saas');
 const { calculateOrderBill } = require('../utils/calculator');
 const { idempotency } = require('../middleware/idempotency');
@@ -65,7 +65,7 @@ router.get('/menu/:slug', (req, res) => {
 });
 
 /** Place an order. Prices come from the server menu — the client only says WHAT and HOW MANY. */
-router.post('/orders', orderLimiter, idempotency(), (req, res) => {
+router.post('/orders', orderLimiter, idempotency(), async (req, res) => {
   const { slug, table, items, name, phone, notes, orderType = 'dine_in' } = req.body || {};
   const r = resolve(String(slug || ''));
   if (!r) return bad(res, 'Restaurant not found', 404);
@@ -100,39 +100,43 @@ router.post('/orders', orderLimiter, idempotency(), (req, res) => {
   }
   const billing = calculateOrderBill({ items: lines, taxRatePercent: r.taxPercent || 0, discountPercent: 0 });
 
-  r.orderSeq = (r.orderSeq || 0) + 1;
-  const order = {
-    id: `${r.shortId}-${r.orderSeq}`, token: r.orderSeq, trackKey: crypto.randomBytes(4).toString('hex'), restaurantId: r.id,
-    tableNumber: tableName, customer: { name: String(name || '').trim().slice(0, 60) || 'Guest', phone: String(phone || '').trim().slice(0, 15) },
-    status: 'pending', items: lines, billing, totalAmount: billing.grandTotal, customerNotes: notes ? String(notes).slice(0, 200) : null,
-    orderType: 'dine_in', payment: { status: 'unpaid', method: null }, etaMinutes: r.store.prepMinutes || null,
-    source: 'customer', createdAt: new Date().toISOString(),
-  };
-  inMemoryData.orders.unshift(order);
-  // Auto-deplete inventory if restaurant has matching stock items
-  if (Array.isArray(r.inventory) && r.inventory.length > 0) {
-    for (const l of lines) {
-      const match = r.inventory.find((inv) => inv.name.toLowerCase() === l.name.toLowerCase());
-      if (match) {
-        const oldStock = Number(match.stock || 0);
-        match.stock = Math.max(0, oldStock - (l.qty || 1));
-        r.inventoryLogs = r.inventoryLogs || [];
-        r.inventoryLogs.unshift({
-          id: `log_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`,
-          itemId: match.id,
-          itemName: match.name,
-          change: -(l.qty || 1),
-          oldStock,
-          newStock: match.stock,
-          reason: `Auto-deducted for Order #${order.token}`,
-          at: new Date().toISOString(),
-        });
+  const order = await withTableLock(`${r.id}_${tableName}`, async () => {
+    r.orderSeq = (r.orderSeq || 0) + 1;
+    const o = {
+      id: `${r.shortId}-${r.orderSeq}`, token: r.orderSeq, trackKey: crypto.randomBytes(4).toString('hex'), restaurantId: r.id,
+      tableNumber: tableName, customer: { name: String(name || '').trim().slice(0, 60) || 'Guest', phone: String(phone || '').trim().slice(0, 15) },
+      status: 'pending', items: lines, billing, totalAmount: billing.grandTotal, customerNotes: notes ? String(notes).slice(0, 200) : null,
+      orderType: 'dine_in', payment: { status: 'unpaid', method: null }, etaMinutes: r.store.prepMinutes || null,
+      source: 'customer', createdAt: new Date().toISOString(),
+    };
+    inMemoryData.orders.unshift(o);
+    // Auto-deplete inventory if restaurant has matching stock items
+    if (Array.isArray(r.inventory) && r.inventory.length > 0) {
+      for (const l of lines) {
+        const match = r.inventory.find((inv) => inv.name.toLowerCase() === l.name.toLowerCase());
+        if (match) {
+          const oldStock = Number(match.stock || 0);
+          match.stock = Math.max(0, oldStock - (l.qty || 1));
+          r.inventoryLogs = r.inventoryLogs || [];
+          r.inventoryLogs.unshift({
+            id: `log_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`,
+            itemId: match.id,
+            itemName: match.name,
+            change: -(l.qty || 1),
+            oldStock,
+            newStock: match.stock,
+            reason: `Auto-deducted for Order #${o.token}`,
+            at: new Date().toISOString(),
+          });
+        }
       }
     }
-  }
-  S.notify(r, { type: 'order', title: `New order #${order.token} · ${tableName}`, body: `${lines.reduce((n, l) => n + l.qty, 0)} items · ₹${order.totalAmount}`, data: { orderId: order.id } });
-  persistDb();
-  RT.orderNew(r, order);
+    S.notify(r, { type: 'order', title: `New order #${o.token} · ${tableName}`, body: `${lines.reduce((n, l) => n + l.qty, 0)} items · ₹${o.totalAmount}`, data: { orderId: o.id } });
+    persistDb();
+    RT.orderNew(r, o);
+    return o;
+  });
+
   res.status(201).json({ success: true, order: { id: order.id, token: order.token, trackKey: order.trackKey, status: order.status, totalAmount: order.totalAmount, billing } });
 });
 
