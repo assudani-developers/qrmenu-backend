@@ -15,13 +15,27 @@ const initialData = {
   activities: [],
   leads: [],
   coupons: [],
+  _archive: { restaurants: [], items: [], orders: [], coupons: [], leads: [], feedbacks: [] },
 };
 
 const BACKUP_DIR = path.join(path.dirname(DB_FILE), 'backups');
+const VAULT_DIR = path.join(path.dirname(DB_FILE), 'vault');
+const LEDGER_FILE = path.join(VAULT_DIR, 'audit_ledger.jsonl');
 const TMP_FILE = DB_FILE + '.tmp';
 
 // In-Memory Data Store with fallback initialization
 let inMemoryData = initialData;
+
+/**
+ * Append-only Write-Ahead Disaster Recovery Journal
+ */
+function appendLedger(action, details = {}) {
+  try {
+    if (!fs.existsSync(VAULT_DIR)) fs.mkdirSync(VAULT_DIR, { recursive: true });
+    const entry = JSON.stringify({ ts: new Date().toISOString(), action, ...details }) + '\n';
+    fs.appendFileSync(LEDGER_FILE, entry, 'utf8');
+  } catch (_) {}
+}
 
 // In-Memory O(1) Index Maps
 const indexById = new Map();
@@ -62,6 +76,24 @@ function performAtomicDiskSync() {
     const dir = path.dirname(DB_FILE);
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
+    }
+
+    // Safety Invariant: Anti-Wipe Protection Guard
+    // If the database on disk is healthy and populated with restaurants,
+    // prevent an uninitialized 0-restaurant state from wiping it!
+    if (fs.existsSync(DB_FILE) && !DB_FILE.includes('qrm-') && !DB_FILE.includes('tmp')) {
+      try {
+        const onDisk = fs.readFileSync(DB_FILE, 'utf8');
+        if (onDisk && onDisk.length > 50) {
+          const parsed = JSON.parse(onDisk);
+          if (Array.isArray(parsed.restaurants) && parsed.restaurants.length > 0) {
+            if (!Array.isArray(inMemoryData.restaurants) || inMemoryData.restaurants.length === 0) {
+              console.error('🚨 [DB Safety Guard] BLOCKED WRITE: Prevented overwriting populated database with 0 restaurants!');
+              return;
+            }
+          }
+        }
+      } catch (_) {}
     }
 
     const payload = JSON.stringify(inMemoryData, null, 2);
@@ -121,16 +153,31 @@ function createSnapshot(reason = 'auto') {
 
     const serialized = JSON.stringify(inMemoryData, null, 2);
     fs.writeFileSync(snapshotPath, serialized, 'utf8');
-    fs.writeFileSync(latestPath, serialized, 'utf8');
 
-    // Keep only the latest 10 historical snapshots to avoid disk bloat
+    // Only update db-backup-latest.json if the current state is populated/valid, or if no backup exists yet
+    const hasData = Array.isArray(inMemoryData.restaurants) && inMemoryData.restaurants.length > 0;
+    if (hasData || !fs.existsSync(latestPath)) {
+      fs.writeFileSync(latestPath, serialized, 'utf8');
+    }
+
+    // Daily Immutable Backup Archive (Never pruned, 1 snapshot per calendar day)
+    const dailyDir = path.join(BACKUP_DIR, 'daily');
+    if (!fs.existsSync(dailyDir)) fs.mkdirSync(dailyDir, { recursive: true });
+    const today = new Date().toISOString().slice(0, 10);
+    const dailyFile = path.join(dailyDir, `db_${today}.json`);
+    if (!fs.existsSync(dailyFile) && hasData) {
+      fs.writeFileSync(dailyFile, serialized, 'utf8');
+      console.log(`[DB Disaster Recovery] Permanent daily archive created: ${dailyFile}`);
+    }
+
+    // Keep the latest 20 historical rolling snapshots
     const files = fs.readdirSync(BACKUP_DIR)
       .filter((f) => f.startsWith('snapshot_') && f.endsWith('.json'))
       .sort()
       .reverse();
 
-    if (files.length > 10) {
-      for (const staleFile of files.slice(10)) {
+    if (files.length > 20) {
+      for (const staleFile of files.slice(20)) {
         try {
           fs.unlinkSync(path.join(BACKUP_DIR, staleFile));
         } catch (_) {}
@@ -139,6 +186,30 @@ function createSnapshot(reason = 'auto') {
   } catch (err) {
     console.error('[DB Disaster Recovery] Snapshot error:', err.message);
   }
+}
+
+/**
+ * Zero-Data-Loss Soft Delete: Preserves any deleted restaurant, order, or item
+ * into an internal server-side archive that can never be lost.
+ */
+function archiveRecord(table, record, reason = 'deleted', author = 'system') {
+  if (!inMemoryData._archive) {
+    inMemoryData._archive = { restaurants: [], items: [], orders: [], coupons: [], leads: [], feedbacks: [] };
+  }
+  if (!Array.isArray(inMemoryData._archive[table])) {
+    inMemoryData._archive[table] = [];
+  }
+  const archived = {
+    ...record,
+    _deletedAt: new Date().toISOString(),
+    _deletedBy: author,
+    _reason: reason,
+  };
+  inMemoryData._archive[table].unshift(archived);
+  appendLedger(`ARCHIVE_${String(table).toUpperCase()}`, { id: record.id, reason, author });
+  recordActivity('archive', `${table} record preserved`, `Archived record ID ${record.id || 'N/A'}`);
+  persistDb();
+  return archived;
 }
 
 /**
@@ -161,26 +232,50 @@ function loadDatabaseWithRecovery() {
       }
     } catch (parseErr) {
       console.error('🚨 [DB Corruption Alert] Primary db.json is corrupted or incomplete:', parseErr.message);
+      try {
+        const corruptPath = path.join(BACKUP_DIR, `corrupted_db_${Date.now()}.json`);
+        if (!fs.existsSync(BACKUP_DIR)) fs.mkdirSync(BACKUP_DIR, { recursive: true });
+        fs.copyFileSync(DB_FILE, corruptPath);
+        console.log(`[DB Disaster Recovery] Preserved corrupted file to ${corruptPath}`);
+      } catch (_) {}
     }
   }
 
   // 2. If primary failed or corrupted, search backup snapshots
   if (!loaded && fs.existsSync(BACKUP_DIR)) {
     console.warn('🔄 [DB Disaster Recovery] Attempting automated snapshot restoration...');
+    const candidateFiles = [
+      path.join(BACKUP_DIR, 'db-backup-latest.json'),
+    ];
     try {
-      const latestPath = path.join(BACKUP_DIR, 'db-backup-latest.json');
-      if (fs.existsSync(latestPath)) {
-        const backupRaw = fs.readFileSync(latestPath, 'utf8');
-        const backupParsed = JSON.parse(backupRaw);
-        if (backupParsed && Array.isArray(backupParsed.restaurants)) {
-          inMemoryData = backupParsed;
-          loaded = true;
-          console.log('✅ [DB Disaster Recovery] Successfully recovered from latest healthy backup snapshot!');
-          forceFlushDb(); // Persist restored state back to primary db.json
-        }
+      const allFiles = fs.readdirSync(BACKUP_DIR)
+        .filter((f) => f.endsWith('.json') && f !== 'db-backup-latest.json')
+        .sort()
+        .reverse()
+        .map((f) => path.join(BACKUP_DIR, f));
+      candidateFiles.push(...allFiles);
+
+      const dailyDir = path.join(BACKUP_DIR, 'daily');
+      if (fs.existsSync(dailyDir)) {
+        const dailyFiles = fs.readdirSync(dailyDir).filter((f) => f.endsWith('.json')).sort().reverse().map((f) => path.join(dailyDir, f));
+        candidateFiles.push(...dailyFiles);
       }
-    } catch (backupErr) {
-      console.error('❌ [DB Disaster Recovery] Backup restore failed:', backupErr.message);
+    } catch (_) {}
+
+    for (const candidate of candidateFiles) {
+      try {
+        if (fs.existsSync(candidate)) {
+          const backupRaw = fs.readFileSync(candidate, 'utf8');
+          const backupParsed = JSON.parse(backupRaw);
+          if (backupParsed && Array.isArray(backupParsed.restaurants)) {
+            inMemoryData = backupParsed;
+            loaded = true;
+            console.log(`✅ [DB Disaster Recovery] Successfully recovered from ${path.basename(candidate)}!`);
+            forceFlushDb(); // Persist restored state back to primary db.json
+            break;
+          }
+        }
+      } catch (_) {}
     }
   }
 
@@ -285,6 +380,8 @@ module.exports = {
   withTableLock,
   createSnapshot,
   loadDatabaseWithRecovery,
+  archiveRecord,
+  appendLedger,
   findRestaurantById,
   findRestaurantByShortId,
   findRestaurantBySlug,

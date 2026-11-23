@@ -7,6 +7,11 @@ data/backups/snapshot_*.json
 *.tmp
 uploads/*
 !uploads/.gitkeep
+data/vault/uploads/*
+!data/vault/uploads/.gitkeep
+data/vault/audit_ledger.jsonl
+data/backups/daily/*
+!data/backups/daily/.gitkeep
 
 # Python OCR
 __pycache__/

@@ -3,7 +3,7 @@ const express = require('express');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const { JWT_SECRET, generateToken } = require('../middleware/auth');
-const { inMemoryData, persistDb, rebuildIndexes, recordActivity, createSnapshot } = require('../db');
+const { inMemoryData, persistDb, rebuildIndexes, recordActivity, createSnapshot, archiveRecord } = require('../db');
 const S = require('../services/saas');
 const RT = require('../services/realtime');
 
@@ -150,9 +150,12 @@ router.delete('/restaurants/:id', (req, res) => {
   const i = inMemoryData.restaurants.findIndex((r) => r.id === req.params.id);
   if (i < 0) return bad(res, 'Not found', 404);
   const [gone] = inMemoryData.restaurants.splice(i, 1);
+  const orphanedOrders = inMemoryData.orders.filter((o) => o.restaurantId === gone.id);
   inMemoryData.orders = inMemoryData.orders.filter((o) => o.restaurantId !== gone.id);
+  archiveRecord('restaurants', gone, 'Deleted by admin', req.user?.email || 'admin');
+  for (const o of orphanedOrders) archiveRecord('orders', o, `Associated restaurant ${gone.name} deleted`);
   rebuildIndexes();
-  recordActivity('restaurant', 'Restaurant deleted', `${gone.name} was removed by admin.`);
+  recordActivity('restaurant', 'Restaurant deleted', `${gone.name} was removed by admin (preserved in vault archive).`);
   persistDb();
   res.json({ success: true });
 });
@@ -387,7 +390,10 @@ router.patch('/restaurants/:id/items/:itemId', (req, res) => {
 router.delete('/restaurants/:id/items/:itemId', (req, res) => {
   const r = find(req.params.id);
   if (!r) return bad(res, 'Not found', 404);
-  r.items = r.items.filter((x) => x.id !== req.params.itemId); syncCats(r); persistDb(); RT.menuUpdated(r);
+  const item = r.items.find((x) => x.id === req.params.itemId);
+  r.items = r.items.filter((x) => x.id !== req.params.itemId);
+  if (item) archiveRecord('items', { ...item, restaurantId: r.id, restaurantName: r.name }, 'Deleted by admin');
+  syncCats(r); persistDb(); RT.menuUpdated(r);
   res.json({ success: true });
 });
 
@@ -409,10 +415,13 @@ router.patch('/orders/:id/status', (req, res) => {
   res.json({ success: true, order: o });
 });
 router.delete('/orders/:id', (req, res) => {
-  const n = inMemoryData.orders.length;
-  inMemoryData.orders = inMemoryData.orders.filter((x) => x.id !== req.params.id);
-  if (inMemoryData.orders.length === n) return bad(res, 'Not found', 404);
-  persistDb(); res.json({ success: true });
+  const i = inMemoryData.orders.findIndex((x) => x.id === req.params.id);
+  if (i < 0) return bad(res, 'Not found', 404);
+  const [gone] = inMemoryData.orders.splice(i, 1);
+  archiveRecord('orders', gone, 'Deleted by admin', req.user?.email || 'admin');
+  rebuildIndexes();
+  persistDb();
+  res.json({ success: true });
 });
 
 /* ---- feedback ---- */
@@ -421,7 +430,12 @@ router.get('/feedbacks', (req, res) => {
   res.json({ success: true, feedbacks: inMemoryData.feedbacks.map((f) => ({ ...f, restaurantName: names[f.restaurantId] || '—' })) });
 });
 router.delete('/feedbacks/:id', (req, res) => {
-  inMemoryData.feedbacks = inMemoryData.feedbacks.filter((x) => x.id !== req.params.id); persistDb();
+  const i = inMemoryData.feedbacks.findIndex((x) => x.id === req.params.id);
+  if (i >= 0) {
+    const [gone] = inMemoryData.feedbacks.splice(i, 1);
+    archiveRecord('feedbacks', gone, 'Deleted by admin');
+  }
+  persistDb();
   res.json({ success: true });
 });
 

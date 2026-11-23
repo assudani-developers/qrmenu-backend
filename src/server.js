@@ -11,7 +11,8 @@ dotenv.config({ path: path.join(__dirname, '../.env') });
 
 const { globalLimiter, ipBlockerMiddleware } = require('./middleware/rateLimiter');
 const { sanitizeMiddleware, notFoundHandler, globalErrorHandler } = require('./middleware/errorHandler');
-const { forceFlushDb } = require('./db');
+const { forceFlushDb, createSnapshot } = require('./db');
+const ImageVault = require('./services/imageVault');
 
 const app = express();
 const server = http.createServer(app);
@@ -61,6 +62,20 @@ const publicRoutes = require('./routes/public');
 const adminRoutes = require('./routes/admin');
 require('./services/saas').migrateAll();
 require('./services/menuScanner').warmup();
+ImageVault.init(); // Auto-heal & mirror all uploaded customer images
+createSnapshot('boot'); // Automatic boot snapshot
+
+// Periodic Hourly Disaster Recovery Cron (Snapshots & Image Vault Sync)
+if (process.env.NODE_ENV !== 'test') {
+  setInterval(() => {
+    try {
+      createSnapshot('hourly');
+      ImageVault.autoHealAndSync();
+    } catch (err) {
+      console.error('[Disaster Recovery Cron] Error:', err.message);
+    }
+  }, 3600 * 1000).unref(); // unref so it won't prevent process exit
+}
 
 app.use('/api/owner', ownerRoutes);
 app.use('/api/admin', adminRoutes);
@@ -89,6 +104,10 @@ app.use(globalErrorHandler);
 function gracefulShutdown(signal) {
   console.log(`\n[Server] Received ${signal}. Flushing pending DB state to disk...`);
   forceFlushDb(); // Atomic flush to disk to guarantee zero data loss
+  try {
+    createSnapshot('shutdown');
+    ImageVault.autoHealAndSync();
+  } catch (_) {}
   server.close(() => {
     console.log('[Server] HTTP and WebSocket connections closed cleanly. Exiting.');
     process.exit(0);

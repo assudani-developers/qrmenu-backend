@@ -4,7 +4,7 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const { JWT_SECRET, generateToken } = require('../middleware/auth');
-const { inMemoryData, persistDb, rebuildIndexes, findRestaurantById, recordActivity } = require('../db');
+const { inMemoryData, persistDb, rebuildIndexes, findRestaurantById, recordActivity, archiveRecord } = require('../db');
 const S = require('../services/saas');
 const { scanMenu } = require('../services/menuScanner');
 const RT = require('../services/realtime');
@@ -372,8 +372,10 @@ router.post('/menu/items/bulk-price', (req, res) => {
 router.delete('/menu/items/:itemId', (req, res) => {
   const r = req.rest;
   const n = r.items.length;
+  const item = r.items.find((x) => x.id === req.params.itemId);
   r.items = r.items.filter((x) => x.id !== req.params.itemId);
   if (r.items.length === n) return bad(res, 'Dish not found', 404);
+  if (item) archiveRecord('items', { ...item, restaurantId: r.id, restaurantName: r.name }, 'Deleted by owner', r.phone || 'owner');
   r.categories = r.categories.filter((c) => r.items.some((i) => i.category === c));
   persistDb();
   RT.menuUpdated(r);
@@ -517,6 +519,7 @@ const multer = require('multer');
 const sharp = require('sharp');
 const path = require('path');
 const fs = require('fs');
+const ImageVault = require('../services/imageVault');
 const uploadDir = path.join(__dirname, '../../uploads');
 fs.mkdirSync(uploadDir, { recursive: true });
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 }, fileFilter: (q, f, cb) => cb(null, f.mimetype.startsWith('image/')) });
@@ -529,6 +532,7 @@ router.post('/upload', upload.single('image'), async (req, res) => {
   try {
     const name = `${req.rest.shortId}_${Date.now().toString(36)}.webp`;
     await sharp(req.file.buffer).rotate().resize(1000, 1000, { fit: 'inside', withoutEnlargement: true }).webp({ quality: 80 }).toFile(path.join(uploadDir, name));
+    ImageVault.preserveFile(name);
     const origin = process.env.PUBLIC_API_URL || `${req.protocol}://${req.get('host')}`;
     res.json({ success: true, url: `${origin.replace(/\/$/, '')}/uploads/${name}` });
   } catch (_) { bad(res, 'Could not process that image', 422); }
