@@ -533,7 +533,7 @@ router.post('/upload', upload.single('image'), async (req, res) => {
     const name = `${req.rest.shortId}_${Date.now().toString(36)}.webp`;
     await sharp(req.file.buffer).rotate().resize(1000, 1000, { fit: 'inside', withoutEnlargement: true }).webp({ quality: 80 }).toFile(path.join(uploadDir, name));
     ImageVault.preserveFile(name);
-    const origin = process.env.PUBLIC_API_URL || `${req.protocol}://${req.get('host')}`;
+    const origin = process.env.PUBLIC_API_URL || 'https://qrmenu.piyushassudani.in';
     res.json({ success: true, url: `${origin.replace(/\/$/, '')}/uploads/${name}` });
   } catch (_) { bad(res, 'Could not process that image', 422); }
 });

@@ -9,7 +9,7 @@ const TRIAL_DAYS = 7;
 const DAY = 24 * 3600 * 1000;
 
 /** Public base URL where customer menus are hosted (the Next.js app). */
-const menuBaseUrl = () => (process.env.PUBLIC_MENU_BASE_URL || 'http://localhost:3001').replace(/\/$/, '');
+const menuBaseUrl = () => (process.env.PUBLIC_MENU_BASE_URL || 'https://qrmenu-website-three.vercel.app').replace(/\/$/, '');
 
 /**
  * SEED DATA ONLY. On first boot these are written into the database (adminConfig.*); from then on the
