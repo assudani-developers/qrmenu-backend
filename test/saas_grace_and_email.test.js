@@ -109,6 +109,23 @@ test('Restaurant Creation: stores email correctly in lower-case', () => {
   assert.equal(r.email, 'piyush@example.com');
 });
 
+test('Restaurant Creation: startTrial=false creates pending subscription without free trial', () => {
+  const r = S.createRestaurant({
+    name: 'Direct Pay Restro',
+    ownerName: 'Piyush',
+    phone: '9413879445',
+    city: 'Jaipur',
+    email: 'direct@example.com',
+    plan: 'growth',
+    startTrial: false,
+  });
+  assert.equal(r.subscription.status, 'pending');
+  assert.equal(r.subscription.trialStartedAt, null);
+  assert.equal(r.subscription.trialEndsAt, null);
+  assert.equal(r.subscription.paidUntil, null);
+  assert.equal(S.isMenuLive(r), false); // Menu is locked until paid
+});
+
 test('UPI Screenshot Auto-Check: verifies genuine, rejects wrong amount, and blocks reused hashes', async () => {
   const sharp = require('sharp');
   const fs = require('fs');

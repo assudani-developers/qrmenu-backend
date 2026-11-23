@@ -174,7 +174,7 @@ router.post('/login/resend', authLimiter, async (req, res) => {
 });
 
 router.post('/signup', (req, res) => {
-  const { name, ownerName, phone, password, city, plan, cuisine, couponCode, email, emailToken } = req.body || {};
+  const { name, ownerName, phone, password, city, plan, cuisine, couponCode, email, emailToken, startTrial } = req.body || {};
   const settings = inMemoryData.adminConfig.settings;
   if (!settings.signupsOpen) return bad(res, 'Signups are temporarily closed', 403);
   if (!name || String(name).trim().length < 2) return bad(res, 'Enter your restaurant name');
@@ -190,24 +190,53 @@ router.post('/signup', (req, res) => {
   if (inMemoryData.restaurants.some((r) => String(r.phone || '').replace(/\D/g, '') === cleanPhone)) {
     return bad(res, 'This mobile number is already registered. Please sign in.', 409);
   }
-  // Every account starts on the free trial; paying happens later on the website.
+  const shouldStartTrial = startTrial !== false;
   let price = null;
   if (couponCode) {
     price = S.priceWithCoupon(plan, couponCode);
     if (!price.ok) return bad(res, price.error);
-    if (!(price.coupon && price.coupon.type === 'trial_days')) return bad(res, 'Discount coupons apply when you pay. Add this one at checkout.');
+    if (shouldStartTrial && !(price.coupon && price.coupon.type === 'trial_days')) {
+      return bad(res, 'Discount coupons apply when you pay. Uncheck free trial to pay directly.');
+    }
   }
-  const r = S.createRestaurant({ name: String(name).trim(), ownerName: String(ownerName).trim(), phone: cleanPhone, email, password, city, plan, cuisine });
-  if (price && price.coupon) {
+  const r = S.createRestaurant({
+    name: String(name).trim(),
+    ownerName: String(ownerName).trim(),
+    phone: cleanPhone,
+    email,
+    password,
+    city,
+    plan,
+    cuisine,
+    startTrial: shouldStartTrial,
+  });
+  if (price && price.coupon && shouldStartTrial && r.subscription.trialEndsAt) {
     S.findCoupon(couponCode).used += 1;
     r.subscription.trialEndsAt = new Date(new Date(r.subscription.trialEndsAt).getTime() + price.extraTrialDays * S.DAY).toISOString();
   }
   r.emailVerified = true;
-  recordActivity('restaurant', 'New signup', `${r.name} joined on the ${S.getPlans()[r.subscription.plan].name} trial.`);
+  recordActivity(
+    'restaurant',
+    'New signup',
+    shouldStartTrial
+      ? `${r.name} joined on the ${S.getPlans()[r.subscription.plan].name} trial.`
+      : `${r.name} joined on ${S.getPlans()[r.subscription.plan].name} (pending direct payment).`
+  );
   persistDb();
   RT.toAdmin('restaurant:new', { id: r.id, name: r.name });
-  require('../services/push').toAdmins({ title: 'New restaurant signed up', body: `${r.name} · ${r.city || ''} · ${S.getPlans()[r.subscription.plan].name} trial`, url: '/dashboard/restaurants' });
-  return res.status(201).json({ success: true, token: generateToken({ role: 'owner', restaurantId: r.id }), restaurant: summary(r) });
+  require('../services/push').toAdmins({
+    title: 'New restaurant signed up',
+    body: shouldStartTrial
+      ? `${r.name} · ${r.city || ''} · ${S.getPlans()[r.subscription.plan].name} trial`
+      : `${r.name} · ${r.city || ''} · ${S.getPlans()[r.subscription.plan].name} (awaiting payment)`,
+    url: '/dashboard/restaurants',
+  });
+  return res.status(201).json({
+    success: true,
+    token: generateToken({ role: 'owner', restaurantId: r.id }),
+    restaurant: summary(r),
+    needsPayment: !shouldStartTrial,
+  });
 });
 
 router.post('/login', (req, res) => {

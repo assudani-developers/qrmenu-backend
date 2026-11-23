@@ -319,12 +319,12 @@ function publicLinks(r) {
   };
 }
 
-/** Create a new restaurant tenant with a 7-day trial. */
-function createRestaurant({ name, ownerName, phone, city, plan = 'growth', password, cuisine, email }) {
+/** Create a new restaurant tenant with a 7-day trial or direct pending payment. */
+function createRestaurant({ name, ownerName, phone, city, plan = 'growth', password, cuisine, email, startTrial = true }) {
   const settings = inMemoryData.adminConfig.settings;
   const chosen = getPlans()[plan] ? plan : 'growth';
   const now = Date.now();
-  const trialOn = settings.trialEnabled !== false;
+  const trialOn = startTrial !== false && settings.trialEnabled !== false;
   const slug = uniqueSlug(name);
   const r = {
     id: `rest-${crypto.randomBytes(5).toString('hex')}`,
@@ -350,9 +350,9 @@ function createRestaurant({ name, ownerName, phone, city, plan = 'growth', passw
     items: [],
     subscription: {
       plan: chosen,
-      status: trialOn ? 'trial' : 'expired',
-      trialStartedAt: new Date(now).toISOString(),
-      trialEndsAt: new Date(now + (settings.trialDays || TRIAL_DAYS) * DAY).toISOString(),
+      status: trialOn ? 'trial' : (startTrial === false ? 'pending' : 'expired'),
+      trialStartedAt: trialOn ? new Date(now).toISOString() : null,
+      trialEndsAt: trialOn ? new Date(now + (settings.trialDays || TRIAL_DAYS) * DAY).toISOString() : null,
       paidUntil: null,
     },
   };
