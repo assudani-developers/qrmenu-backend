@@ -7,7 +7,7 @@ const os = require('node:os');
 const path = require('node:path');
 
 const PORT = 5600 + Math.floor(Math.random() * 300);
-const BASE = `http://localhost:${PORT}/api`;
+const BASE = `http://127.0.0.1:${PORT}/api`;
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'qrm-'));
 let server;
 const call = async (method, url, body, token, headers = {}) => {
@@ -16,7 +16,7 @@ const call = async (method, url, body, token, headers = {}) => {
 };
 
 test.before(async () => {
-  server = spawn('node', [path.join(__dirname, '../src/server.js')], { env: { ...process.env, PORT, DB_FILE: path.join(dir, 'db.json'), OCR_PRELOAD: '0', RATE_LIMIT_MAX: '5000', ADMIN_EMAIL: 'a@t.io', ADMIN_PASSWORD: 'pw-test-1' }, stdio: 'ignore' });
+  server = spawn('node', [path.join(__dirname, '../src/server.js')], { env: { ...process.env, PORT: String(PORT), DB_FILE: path.join(dir, 'db.json'), OCR_PRELOAD: '0', RATE_LIMIT_MAX: '5000', ADMIN_EMAIL: 'a@t.io', ADMIN_PASSWORD: 'pw-test-1' }, stdio: ['ignore', 'inherit', 'inherit'] });
   for (let i = 0; i < 40; i++) { try { if ((await fetch(BASE + '/health')).ok) return; } catch (_) {} await new Promise((r) => setTimeout(r, 250)); }
   throw new Error('server did not start');
 });

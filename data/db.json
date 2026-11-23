@@ -1,6 +1,6 @@
 {
   "adminConfig": {
-    "adminUpiId": "",
+    "adminUpiId": "9413879444@yespop",
     "adminPhone": "",
     "supportEmail": "",
     "plans": {
@@ -156,7 +156,9 @@
       "maintenanceMode": false,
       "signupsOpen": true,
       "appPaymentLinks": true,
-      "brandName": "QR Menu Pro"
+      "brandName": "QR Menu Pro",
+      "adminUpiId": "9413879444@yespop",
+      "payeeName": "PIYUSH ASSUDANI"
     },
     "templates": [
       {
@@ -614,7 +616,8 @@
         "type": "bool"
       }
     ],
-    "payeeName": "QR Menu Pro"
+    "payeeName": "PIYUSH ASSUDANI",
+    "paymentQrUrl": "/images/payment_qr.png"
   },
   "restaurants": [
     {

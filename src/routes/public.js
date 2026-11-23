@@ -1,12 +1,19 @@
 /** Public, unauthenticated customer API (hosted menus + website). Everything is validated against server data. */
 const express = require('express');
 const crypto = require('crypto');
+const path = require('path');
+const multer = require('multer');
+const sharp = require('sharp');
 const { inMemoryData, findRestaurantBySlug, findRestaurantByShortId, persistDb } = require('../db');
 const S = require('../services/saas');
 const { calculateOrderBill } = require('../utils/calculator');
 const { idempotency } = require('../middleware/idempotency');
 const { orderLimiter, authLimiter } = require('../middleware/rateLimiter');
 const RT = require('../services/realtime');
+const ImageVault = require('../services/imageVault');
+
+const uploadDir = path.join(__dirname, '../../uploads');
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024 } });
 
 const router = express.Router();
 const bad = (res, msg, code = 400) => res.status(code).json({ success: false, message: msg });
@@ -210,11 +217,36 @@ function payView(co) {
     restaurant: { name: r.name, ownerName: r.ownerName, phone: maskPhone(r.phone), shortId: r.shortId, city: r.city },
     subscription: { status: sub.status, plan: sub.plan, planName: sub.planName, daysLeft: sub.daysLeft, endsAt: sub.endsAt, trialEndsAt: r.subscription.trialEndsAt },
     plans: S.planOrder().map((id) => { const p = S.getPlans()[id]; return { id, name: p.name, price: p.price, tagline: p.tagline, popular: !!p.popular, badge: p.badge || '' }; }),
-    payee: { upiId: c.adminUpiId, name: c.payeeName || c.settings.brandName || 'QR Menu Pro' },
+    payee: {
+      upiId: c.adminUpiId || '9413879444@yespop',
+      name: c.payeeName || 'PIYUSH ASSUDANI',
+      qrImage: '/images/payment_qr.png',
+      cardImage: '/images/payment_card.png',
+    },
     brandName: c.settings.brandName || 'QR Menu Pro', trialDays: c.settings.trialDays,
-    payment: pay && { id: pay.id, status: pay.status, amount: pay.amount, listPrice: pay.listPrice, coupon: pay.coupon, discount: pay.discount || 0, planId: pay.planId, utrRef: pay.utrRef, date: pay.date, verifiedAt: pay.verifiedAt || null, paidUntil: pay.expiryExtendedTo || null },
+    payment: pay && { id: pay.id, status: pay.status, amount: pay.amount, listPrice: pay.listPrice, coupon: pay.coupon, discount: pay.discount || 0, planId: pay.planId, utrRef: pay.utrRef, screenshotUrl: pay.screenshotUrl || null, date: pay.date, verifiedAt: pay.verifiedAt || null, paidUntil: pay.expiryExtendedTo || null },
   };
 }
+
+/** Upload payment confirmation screenshot */
+router.post('/pay/upload-screenshot', upload.single('screenshot'), async (req, res) => {
+  if (!req.file) return bad(res, 'No screenshot image provided', 400);
+  try {
+    const filename = `pay_ss_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}.webp`;
+    await sharp(req.file.buffer)
+      .rotate()
+      .resize(1400, 2000, { fit: 'inside', withoutEnlargement: true })
+      .webp({ quality: 85 })
+      .toFile(path.join(uploadDir, filename));
+    ImageVault.preserveFile(filename);
+    const origin = process.env.PUBLIC_API_URL || 'https://qrmenu.piyushassudani.in';
+    const url = `${origin.replace(/\/$/, '')}/uploads/${filename}`;
+    res.json({ success: true, url, filename });
+  } catch (err) {
+    bad(res, 'Could not process screenshot: ' + err.message, 422);
+  }
+});
+
 router.get('/pay/:id', (req, res) => {
   const co = checkout(req.params.id);
   if (!co) return bad(res, 'This payment link has expired. Open the app and tap Renew again.', 404);
@@ -255,7 +287,7 @@ router.post('/pay/:id/submit', orderLimiter, (req, res) => {
   if (!co) return bad(res, 'This payment link has expired', 404);
   const r = inMemoryData.restaurants.find((x) => x.id === co.restaurantId);
   if (!r) return bad(res, 'Restaurant not found', 404);
-  const { plan, coupon, utr } = req.body || {};
+  const { plan, coupon, utr, screenshotUrl } = req.body || {};
   const ref = String(utr || '').trim();
   if (!/^[A-Za-z0-9]{10,24}$/.test(ref)) return bad(res, 'Enter the 12-digit UPI reference (UTR) shown in your payment app');
   const q = S.priceWithCoupon(plan || co.plan, coupon);
@@ -268,7 +300,7 @@ router.post('/pay/:id/submit', orderLimiter, (req, res) => {
   const tx = {
     id: `TXN-${Date.now().toString(36).toUpperCase()}`, checkoutId: co.id, restaurantId: r.id, restaurantName: r.name, ownerName: r.ownerName,
     phone: r.phone, planId: plan || co.plan, amount: q.final, listPrice: q.original, discount: q.discount, coupon: q.coupon ? q.coupon.code : null,
-    method: 'UPI', utrRef: ref, payeeUpi: inMemoryData.adminConfig.adminUpiId, status: 'pending', source: 'website', date: new Date().toISOString(),
+    method: 'UPI', utrRef: ref, screenshotUrl: screenshotUrl || null, payeeUpi: inMemoryData.adminConfig.adminUpiId || '9413879444@yespop', status: 'pending', source: 'website', date: new Date().toISOString(),
   };
   inMemoryData.payments.unshift(tx);
   if (r.subscription.status !== 'active') r.subscription.pendingPaymentId = tx.id;
