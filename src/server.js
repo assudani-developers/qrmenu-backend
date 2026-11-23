@@ -18,7 +18,7 @@ const app = express();
 const server = http.createServer(app);
 
 // Trust proxy headers from Nginx / Cloudflare for accurate client IP & rate limiting
-app.set('trust proxy', 1);
+app.set('trust proxy', true);
 
 // Real-Time WebSockets Engine
 const io = new Server(server, {

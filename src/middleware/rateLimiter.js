@@ -65,7 +65,7 @@ const globalLimiter = rateLimit({
   max: Number(process.env.RATE_LIMIT_MAX) || 120, // requests per minute per IP (tests raise it)
   standardHeaders: true, // Return rate limit info in `RateLimit-*` headers
   legacyHeaders: false, // Disable the `X-RateLimit-*` headers
-  validate: { xForwardedForHeader: false, default: true },
+  validate: false,
   skip: (req) => req.path === '/api/health' || req.path === '/health',
   handler: (req, res) => {
     const clientIp = req.ip || req.connection.remoteAddress || 'unknown';
@@ -84,7 +84,7 @@ const orderLimiter = rateLimit({
   max: 30, // max 30 order requests per minute per IP
   standardHeaders: true,
   legacyHeaders: false,
-  validate: { xForwardedForHeader: false, default: true },
+  validate: false,
   handler: (req, res) => {
     const clientIp = req.ip || req.connection.remoteAddress || 'unknown';
     recordViolation(clientIp);
@@ -101,7 +101,7 @@ const uploadLimiter = rateLimit({
   max: 10, // max 10 image uploads per minute per IP
   standardHeaders: true,
   legacyHeaders: false,
-  validate: { xForwardedForHeader: false, default: true },
+  validate: false,
   handler: (req, res) => {
     const clientIp = req.ip || req.connection.remoteAddress || 'unknown';
     recordViolation(clientIp);
@@ -118,7 +118,7 @@ const authLimiter = rateLimit({
   max: Number(process.env.AUTH_RATE_MAX) || 30, // sign-in / code attempts per 15 minutes per IP (tests raise it)
   standardHeaders: true,
   legacyHeaders: false,
-  validate: { xForwardedForHeader: false, default: true },
+  validate: false,
   handler: (req, res) => {
     const clientIp = req.ip || req.connection.remoteAddress || 'unknown';
     recordViolation(clientIp);
