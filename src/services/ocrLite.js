@@ -25,7 +25,7 @@ async function getWorker() {
     ensureData();
     const { createWorker } = require('tesseract.js');
     const w = await createWorker(LANGS, 1, { langPath: DATA, cachePath: DATA, gzip: true, logger: () => {} });
-    await w.setParameters({ preserve_interword_spaces: '1', user_defined_dpi: '300' });
+    await w.setParameters({ preserve_interword_spaces: '1' });
     worker = w; starting = null;
     return w;
   })();
@@ -190,38 +190,25 @@ async function readMenu(buf) {
   } finally { release(); }
 }
 
-/** Plain text of an image (used to check payment screenshots): as-is first, light evened out only if that reads little. */
+/** Plain text of an image (used to check payment screenshots). Two reads: normal page layout, then "sparse text",
+ *  which catches big lone lines like the amount that the layout pass sometimes skips. */
 async function readText(buf) {
   const w = await getWorker();
   try {
-    // 1. Direct clean read: phone screenshot has digital text, so simple resize & greyscale is best
-    const direct = await sharp(buf).rotate().resize({ width: 1200, withoutEnlargement: true }).greyscale().png().toBuffer();
-    const { data: d1 } = await w.recognize(direct);
-    const t1 = String(d1.text || '').trim();
-    if (t1.replace(/\s/g, '').length >= 20) {
-      return t1;
+    const img = await sharp(buf).rotate().resize({ width: 1100, withoutEnlargement: true }).greyscale().png().toBuffer();
+    const out = [];
+    for (const psm of ['3', '11']) {
+      await w.setParameters({ tessedit_pageseg_mode: psm });
+      out.push(String((await w.recognize(img)).data.text || ''));
     }
-
-    // 2. Fallback: only if direct read produced almost nothing (e.g. dark phone photo of paper), try flattening
-    let best = t1;
-    try {
-      const flat = await flatten(buf, 1400);
-      const { data: d2 } = await w.recognize(flat);
-      const t2 = String(d2.text || '').trim();
-      if (t2.replace(/\s/g, '').length > best.replace(/\s/g, '').length) best = t2;
-    } catch (_) {}
-
-    return best;
-  } finally { release(); }
-}
-
-async function terminate() {
-  clearTimeout(idle);
-  const w = worker;
-  worker = null;
-  starting = null;
-  if (w) await w.terminate().catch(() => {});
+    return out.join('\n');
+  } finally {
+    await w.setParameters({ tessedit_pageseg_mode: '3' }).catch(() => {});
+    release();
+  }
 }
 
 const warm = () => { getWorker().then(release).catch(() => {}); };
+/** Stop the worker now (tests, shutdown) so it does not keep the process alive. */
+async function terminate() { clearTimeout(idle); const w = worker; worker = null; if (w) await w.terminate().catch(() => {}); }
 module.exports = { readMenu, readText, parseLines, toLines, warm, terminate };

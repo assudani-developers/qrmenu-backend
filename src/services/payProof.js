@@ -54,7 +54,8 @@ async function check(file, { amount, payeeName, upiId, usedHashes, usedUtrs }) {
   if (!payee) reasons.push('Payee name / UPI ID not found');
 
   const amt = Math.round(Number(amount) || 0);
-  const amountHit = amt > 0 && new RegExp(`(₹|rs\\.?|inr)?\\s?${amt.toLocaleString('en-IN').replace(/,/g, ',?')}(\\.00)?(?![0-9])`, 'i').test(t);
+  // the ₹ sign is often read as 3, 2, %, f or z — allow one such character right before the amount
+  const amountHit = amt > 0 && new RegExp(`(?:^|[^0-9])(?:₹|rs\\.?|inr|[23%fz])?\\s?${amt.toLocaleString('en-IN').replace(/,/g, ',?')}(?:\\.00)?(?![0-9])`, 'i').test(t);
   if (!amountHit) reasons.push(`Amount ₹${amt} not found`);
 
   const success = /success|successful|paid|completed|sent|debited|done/.test(t);

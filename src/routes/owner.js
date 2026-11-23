@@ -674,6 +674,7 @@ router.patch('/orders/:oid/payment', needOrdering, (req, res) => {
 });
 /** Customer ledger / hisaab */
 router.get('/customers', (req, res) => {
+  if (!S.subscriptionState(req.rest).features.customers) return S.planBlocked(res, 'customers', 'Your guest list is on the Ultra plan'); // plan limit
   const mine = inMemoryData.orders.filter((o) => o.restaurantId === req.rest.id);
   const map = new Map();
   for (const o of mine) {
@@ -701,6 +702,7 @@ router.get('/customers', (req, res) => {
   res.json({ success: true, customers: Array.from(map.values()).sort((a, b) => (b.lastOrderAt || '').localeCompare(a.lastOrderAt || '')) });
 });
 router.delete('/customers/:identifier', (req, res) => {
+  if (!S.subscriptionState(req.rest).features.customers) return S.planBlocked(res, 'customers');
   const target = decodeURIComponent(req.params.identifier).trim();
   inMemoryData.orders = inMemoryData.orders.filter((o) => {
     if (o.restaurantId !== req.rest.id) return true;
